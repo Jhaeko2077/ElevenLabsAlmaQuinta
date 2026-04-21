@@ -7,19 +7,23 @@ import { createLogger } from './config/logger';
 import { AppMetrics, createMetrics } from './config/metrics';
 import { getEnv } from './config/env';
 import { ElevenLabsController } from './controllers/elevenlabs.controller';
+import { createGoogleCalendarClient } from './lib/google-auth';
 import { RateLimitAppError } from './lib/errors';
 import { createAgentAuthMiddleware } from './middleware/auth';
 import { createErrorHandler } from './middleware/error-handler';
 import { notFoundHandler } from './middleware/not-found';
 import { createRequestIdMiddleware } from './middleware/request-id';
+import { GoogleOAuthTokenRepository } from './repositories/google-oauth-token.repository';
 import { HandoffRepository } from './repositories/handoff.repository';
 import { IdempotencyRepository } from './repositories/idempotency.repository';
 import { LeadRepository } from './repositories/lead.repository';
+import { createAuthRouter } from './routes/auth';
 import { createElevenLabsRouter } from './routes/elevenlabs';
 import { createHealthRouter } from './routes/health';
 import { createMetricsRouter } from './routes/metrics';
 import { AvailabilityService } from './services/availability.service';
 import { CalendarService } from './services/calendar.service';
+import { GoogleOAuthService } from './services/google-oauth.service';
 import { HandoffService } from './services/handoff.service';
 import { LeadService } from './services/lead.service';
 import type { AppEnv } from './types';
@@ -31,6 +35,8 @@ export interface AppDependencies {
   leadRepository: LeadRepository;
   handoffRepository: HandoffRepository;
   idempotencyRepository: IdempotencyRepository;
+  googleOAuthTokenRepository: GoogleOAuthTokenRepository;
+  googleOAuthService: GoogleOAuthService;
   calendarService: CalendarService;
   availabilityService: AvailabilityService;
   leadService: LeadService;
@@ -130,11 +136,22 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
   const leadRepository = overrides.leadRepository ?? new LeadRepository(env.DATA_DIR);
   const handoffRepository = overrides.handoffRepository ?? new HandoffRepository(env.DATA_DIR);
   const idempotencyRepository = overrides.idempotencyRepository ?? new IdempotencyRepository(env.DATA_DIR);
+  const googleOAuthTokenRepository = overrides.googleOAuthTokenRepository ?? new GoogleOAuthTokenRepository(env.DATA_DIR);
+  const googleOAuthService = overrides.googleOAuthService ?? new GoogleOAuthService(
+    env,
+    logger,
+    googleOAuthTokenRepository,
+  );
   const calendarService = overrides.calendarService ?? new CalendarService(
     env,
     metrics,
     logger,
     idempotencyRepository,
+    async (factoryEnv) => createGoogleCalendarClient({
+      env: factoryEnv,
+      tokenRepository: googleOAuthTokenRepository,
+      logger,
+    }),
   );
   const availabilityService = overrides.availabilityService ?? new AvailabilityService(
     env,
@@ -158,6 +175,8 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
     leadRepository,
     handoffRepository,
     idempotencyRepository,
+    googleOAuthTokenRepository,
+    googleOAuthService,
     calendarService,
     availabilityService,
     leadService,
@@ -182,12 +201,16 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
     type: ['application/json', 'application/*+json'],
   }));
 
+  app.use(createAuthRouter({
+    googleOAuthService: dependencies.googleOAuthService,
+  }));
   app.use(createHealthRouter({
     env: dependencies.env,
     calendarService: dependencies.calendarService,
     leadRepository: dependencies.leadRepository,
     handoffRepository: dependencies.handoffRepository,
     idempotencyRepository: dependencies.idempotencyRepository,
+    googleOAuthTokenRepository: dependencies.googleOAuthTokenRepository,
   }));
   app.use(createMetricsRouter(dependencies.metrics, dependencies.env.ENABLE_METRICS));
   app.use(createElevenLabsRouter({

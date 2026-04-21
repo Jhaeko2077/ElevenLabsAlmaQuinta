@@ -4,14 +4,13 @@ import type { calendar_v3 } from 'googleapis';
 
 import { AppMetrics } from '../config/metrics';
 import { UpstreamAppError, ValidationAppError } from '../lib/errors';
-import { createGoogleCalendarClient } from '../lib/google-auth';
 import { normalizeEmail, normalizeNullableString, normalizePhone, normalizeTimezone, sanitizeSummary } from '../lib/normalize';
 import { maskEmail, maskPhone } from '../lib/redaction';
 import { addMinutes, formatIsoInTimeZone, parseMeetingDateTimeInput } from '../lib/time';
 import { IdempotencyRepository } from '../repositories/idempotency.repository';
 import type { AppEnv, BusyWindow, CreateMeetingResult } from '../types';
 
-type CalendarClientFactory = (env: AppEnv) => calendar_v3.Calendar;
+type CalendarClientFactory = (env: AppEnv) => Promise<calendar_v3.Calendar>;
 
 function extractErrorStatus(error: unknown): number {
   const maybeError = error as {
@@ -33,17 +32,18 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 
 export class CalendarService {
   private client: calendar_v3.Calendar | null = null;
+  private clientPromise: Promise<calendar_v3.Calendar> | null = null;
 
   public constructor(
     private readonly env: AppEnv,
     private readonly metrics: AppMetrics,
     private readonly logger: Logger,
     private readonly idempotencyRepository: IdempotencyRepository,
-    private readonly clientFactory: CalendarClientFactory = createGoogleCalendarClient,
+    private readonly clientFactory: CalendarClientFactory,
   ) {}
 
   public async checkReady(): Promise<void> {
-    this.getClient();
+    await this.getClient();
     await this.idempotencyRepository.ensureReady();
   }
 
@@ -54,9 +54,10 @@ export class CalendarService {
   }): Promise<BusyWindow[]> {
     const operation = 'freebusy_query';
     const startedAt = Date.now();
+    const client = await this.getClient();
 
     try {
-      const response = await this.getClient().freebusy.query({
+      const response = await client.freebusy.query({
         requestBody: {
           timeMin: window.timeMin,
           timeMax: window.timeMax,
@@ -227,10 +228,12 @@ export class CalendarService {
   }> {
     const operation = 'events_insert';
     const startedAt = Date.now();
+    const client = await this.getClient();
 
     try {
-      const response = await this.getClient().events.insert({
+      const response = await client.events.insert({
         calendarId: input.calendarId,
+        sendUpdates: 'all',
         requestBody: {
           id: input.eventId,
           summary: input.summary,
@@ -254,12 +257,30 @@ export class CalendarService {
         calendar_event_link: response.data.htmlLink ?? null,
       };
     } catch (error) {
+      const rawError = error as {
+        response?: {
+          status?: unknown;
+          data?: unknown;
+        };
+        message?: string;
+        errors?: unknown;
+      };
       const statusCode = extractErrorStatus(error);
       this.metrics.recordGoogleApiCall(operation, 'failure', Date.now() - startedAt);
 
       if (statusCode === 409) {
         return this.getExistingMeeting(input.calendarId, input.eventId);
       }
+
+      this.logger.error(
+        {
+          status: rawError?.response?.status,
+          data: rawError?.response?.data,
+          message: rawError?.message,
+          errors: rawError?.errors,
+        },
+        'Google Calendar insert raw error',
+      );
 
       this.logger.error({
         event: 'google_calendar_error',
@@ -282,9 +303,10 @@ export class CalendarService {
   }> {
     const operation = 'events_get';
     const startedAt = Date.now();
+    const client = await this.getClient();
 
     try {
-      const response = await this.getClient().events.get({
+      const response = await client.events.get({
         calendarId,
         eventId,
       });
@@ -314,12 +336,24 @@ export class CalendarService {
     }
   }
 
-  private getClient(): calendar_v3.Calendar {
-    if (!this.client) {
-      this.client = this.clientFactory(this.env);
+  private async getClient(): Promise<calendar_v3.Calendar> {
+    if (this.client) {
+      return this.client;
     }
 
-    return this.client;
+    if (!this.clientPromise) {
+      this.clientPromise = this.clientFactory(this.env)
+        .then((client) => {
+          this.client = client;
+          return client;
+        })
+        .catch((error) => {
+          this.clientPromise = null;
+          throw error;
+        });
+    }
+
+    return this.clientPromise;
   }
 
   private buildDescription(input: {

@@ -9,6 +9,7 @@ export function createHealthRouter(dependencies: {
   leadRepository: { ensureReady(): Promise<void> };
   handoffRepository: { ensureReady(): Promise<void> };
   idempotencyRepository: { ensureReady(): Promise<void> };
+  googleOAuthTokenRepository: { ensureReady(): Promise<void> };
 }): Router {
   const router = Router();
 
@@ -41,6 +42,7 @@ export function createHealthRouter(dependencies: {
         dependencies.leadRepository.ensureReady(),
         dependencies.handoffRepository.ensureReady(),
         dependencies.idempotencyRepository.ensureReady(),
+        dependencies.googleOAuthTokenRepository.ensureReady(),
         dependencies.calendarService.checkReady(),
       ]);
 

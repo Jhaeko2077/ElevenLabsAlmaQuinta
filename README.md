@@ -1,8 +1,11 @@
 # Alma Quinta ElevenLabs Backend
 
-Backend HTTP en Node.js 20 + TypeScript para tools de ElevenLabs integradas con Google Calendar y persistencia local simple.
+Backend HTTP en Node.js 20 + TypeScript para tools de ElevenLabs integradas con Google Calendar, persistencia local simple y soporte dual de autenticacion Google:
 
-Este servicio esta pensado para un agente de ElevenLabs que conversa por WhatsApp en texto y llama tools externas via HTTP. No usa SDK de ElevenLabs: expone endpoints REST estables, autenticados por `X-Agent-API-Key`, tolerantes a payloads incompletos y listos para futuros assignments.
+- `GOOGLE_AUTH_MODE=service_account`
+- `GOOGLE_AUTH_MODE=oauth_user`
+
+La migracion a OAuth de usuario queda lista para probar invitados reales sin perder el flujo actual que ya crea eventos con service account.
 
 ## Que incluye
 
@@ -10,11 +13,13 @@ Este servicio esta pensado para un agente de ElevenLabs que conversa por WhatsAp
 - `POST /api/elevenlabs/create-meeting`
 - `POST /api/elevenlabs/save-lead-note`
 - `POST /api/elevenlabs/handoff-to-human`
+- `GET /auth/google/start`
+- `GET /auth/google/callback`
 - `GET /`
 - `GET /health/live`
 - `GET /health/ready`
 - `GET /metrics`
-- Google Calendar via service account
+- Google Calendar por service account y OAuth 2.0 de usuario
 - Persistencia local segura en JSON
 - Logging estructurado con Pino
 - Metricas Prometheus con `prom-client`
@@ -59,6 +64,7 @@ Este servicio esta pensado para un agente de ElevenLabs que conversa por WhatsAp
 │   │   ├── request-id.ts
 │   │   └── validate.ts
 │   ├── routes
+│   │   ├── auth.ts
 │   │   ├── health.ts
 │   │   ├── metrics.ts
 │   │   └── elevenlabs.ts
@@ -67,9 +73,11 @@ Este servicio esta pensado para un agente de ElevenLabs que conversa por WhatsAp
 │   ├── services
 │   │   ├── availability.service.ts
 │   │   ├── calendar.service.ts
+│   │   ├── google-oauth.service.ts
 │   │   ├── handoff.service.ts
 │   │   └── lead.service.ts
 │   ├── repositories
+│   │   ├── google-oauth-token.repository.ts
 │   │   ├── lead.repository.ts
 │   │   ├── handoff.repository.ts
 │   │   └── idempotency.repository.ts
@@ -91,11 +99,12 @@ Este servicio esta pensado para un agente de ElevenLabs que conversa por WhatsAp
 │   ├── handoffs.json
 │   └── idempotency.json
 └── tests
-    ├── health.spec.ts
     ├── check-availability.spec.ts
     ├── create-meeting.spec.ts
-    ├── save-lead-note.spec.ts
+    ├── google-oauth.spec.ts
     ├── handoff-to-human.spec.ts
+    ├── health.spec.ts
+    ├── save-lead-note.spec.ts
     └── test-utils.ts
 ```
 
@@ -172,10 +181,14 @@ La referencia completa esta en `.env.example`.
 | `BUSINESS_HOURS_START` | Inicio de horario comercial. | Lo defines tu. |
 | `BUSINESS_HOURS_END` | Fin de horario comercial. | Lo defines tu. |
 | `DEFAULT_MEETING_DURATION_MINUTES` | Duracion por defecto de la reunion. | Lo defines tu. |
+| `GOOGLE_AUTH_MODE` | Selecciona `service_account` u `oauth_user`. | Lo defines tu. |
 | `GOOGLE_PROJECT_ID` | Project ID del proyecto GCP. | Sale del JSON de la service account. |
 | `GOOGLE_CLIENT_EMAIL` | Email de la service account. | Sale del JSON de la service account. |
 | `GOOGLE_PRIVATE_KEY` | Private key de la service account. | Sale del JSON de la service account. |
-| `GOOGLE_CALENDAR_ID` | Calendar ID del calendario objetivo. | Sale de la configuracion del calendario en Google Calendar. |
+| `GOOGLE_OAUTH_CLIENT_ID` | OAuth Client ID de tipo Web application. | Sale de Google Cloud OAuth client. |
+| `GOOGLE_OAUTH_CLIENT_SECRET` | OAuth Client Secret de tipo Web application. | Sale de Google Cloud OAuth client. |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Redirect URI del OAuth client. | Debe coincidir con Google Cloud. |
+| `GOOGLE_CALENDAR_ID` | Calendar ID del calendario objetivo. | Sale de Google Calendar. En OAuth puedes usar `primary`. |
 | `HANDOFF_PHONE` | Numero humano real del negocio. | Lo define el negocio. |
 | `BOOKING_REFERENCE` | Link o referencia opcional de agenda. | Lo defines tu. |
 | `DATA_DIR` | Carpeta local para persistencia JSON. | Lo defines tu. |
@@ -197,30 +210,28 @@ La referencia completa esta en `.env.example`.
 - Debe coincidir con la variable `business_timezone` del agente.
 - En Alma Quinta el valor por defecto esperado es `America/Lima`.
 
-### `GOOGLE_PROJECT_ID`
+### `GOOGLE_AUTH_MODE`
 
-- Sale del JSON de la service account en Google Cloud.
+- `service_account` preserva el flujo actual.
+- `oauth_user` habilita el flujo de consentimiento y el uso correcto de attendees.
 
-### `GOOGLE_CLIENT_EMAIL`
+### `GOOGLE_PROJECT_ID`, `GOOGLE_CLIENT_EMAIL`, `GOOGLE_PRIVATE_KEY`
 
-- Sale del JSON de la service account.
-- Ese mismo email es el que debes usar para compartir el calendario objetivo en Google Calendar.
+- Salen del JSON de la service account en Google Cloud.
+- `GOOGLE_CLIENT_EMAIL` es tambien el email con el que debes compartir el calendario cuando usas `service_account`.
+- En `.env`, `GOOGLE_PRIVATE_KEY` debe ir con saltos de linea escapados como `\n`.
 
-### `GOOGLE_PRIVATE_KEY`
+### `GOOGLE_OAUTH_CLIENT_ID`, `GOOGLE_OAUTH_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`
 
-- Sale del JSON de la service account.
-- En `.env` debes pegarla con saltos de linea escapados como `\n`.
-- Ejemplo:
-
-```env
-GOOGLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nABC123...\n-----END PRIVATE KEY-----\n
-```
+- Salen de una credencial OAuth tipo `Web application` en Google Cloud.
+- `GOOGLE_OAUTH_REDIRECT_URI` debe coincidir exactamente con la configurada en Google Cloud.
+- Para desarrollo puedes usar `http://localhost:3000/auth/google/callback`.
 
 ### `GOOGLE_CALENDAR_ID`
 
 - Sale de la configuracion del calendario en Google Calendar.
-- Puede ser un email o un `calendar id`.
-- En esta arquitectura el calendario debe estar compartido con la service account.
+- Con `service_account` suele ser un email o calendar id compartido con la service account.
+- Con `oauth_user` puedes usar `primary` para operar sobre el calendario principal del usuario autorizado.
 
 ### `HANDOFF_PHONE`
 
@@ -236,17 +247,26 @@ GOOGLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nABC123...\n-----END PRIVATE KEY-
   - `leads.json`
   - `handoffs.json`
   - `idempotency.json`
+  - `google-oauth-token.json`
 
 ## Configuracion de Google Calendar
 
-### Flujo usado
+### Modo A: backward compatible
 
-- Esta v1 usa service account.
-- No implementa OAuth interactivo.
-- El calendario objetivo debe compartirse manualmente con el email de la service account.
-- El backend usa scopes minimos razonables para lectura y creacion de eventos.
+Usa:
 
-### Pasos
+```env
+GOOGLE_AUTH_MODE=service_account
+```
+
+Comportamiento:
+
+- El backend sigue creando eventos como hoy.
+- No se pierde el flujo actual.
+- Sigue siendo reversible con un cambio de env var.
+- Si no envias `lead_email`, el flujo de `create_meeting` sigue operando igual.
+
+Pasos:
 
 1. Crear o elegir un proyecto en Google Cloud.
 2. Habilitar Google Calendar API.
@@ -255,6 +275,37 @@ GOOGLE_PRIVATE_KEY=-----BEGIN PRIVATE KEY-----\nABC123...\n-----END PRIVATE KEY-
 5. Copiar `project_id`, `client_email` y `private_key` al `.env`.
 6. Compartir el calendario objetivo con `GOOGLE_CLIENT_EMAIL`.
 7. Copiar el `GOOGLE_CALENDAR_ID` correcto.
+
+### Modo B: OAuth 2.0 de usuario
+
+Usa:
+
+```env
+GOOGLE_AUTH_MODE=oauth_user
+GOOGLE_OAUTH_CLIENT_ID=your-oauth-client-id.apps.googleusercontent.com
+GOOGLE_OAUTH_CLIENT_SECRET=your-oauth-client-secret
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/auth/google/callback
+GOOGLE_CALENDAR_ID=primary
+```
+
+Comportamiento:
+
+- El backend usa la cuenta real dueña del calendario.
+- Ya puede mantener `attendees` cuando existe `lead_email`.
+- `events.insert` usa `sendUpdates: 'all'`.
+- El refresh token se guarda localmente en `DATA_DIR/google-oauth-token.json`.
+
+Pasos:
+
+1. En Google Cloud crea un OAuth Client tipo `Web application`.
+2. Agrega exactamente la redirect URI que vas a usar.
+3. Completa el `.env` con las variables OAuth.
+4. Arranca el backend.
+5. Abre `http://localhost:3000/auth/google/start`.
+6. Autoriza con la cuenta dueña del calendario.
+7. Google redirigira a `/auth/google/callback`.
+8. El backend respondera `Google Calendar connected successfully`.
+9. Luego ya puedes probar `create_meeting` con `lead_email`.
 
 ## Relacion con las variables del agente de ElevenLabs
 
@@ -353,47 +404,6 @@ Reglas implementadas:
 - `state.requested_meeting = true`
 - `state.lead_status = reunion_en_proceso`
 
-Ejemplo:
-
-```bash
-curl -X POST http://localhost:3000/api/elevenlabs/check-availability \
-  -H "Content-Type: application/json" \
-  -H "X-Agent-API-Key: YOUR_SECRET" \
-  -d '{
-    "lead_name": "Maria Perez",
-    "preferred_date": "2026-05-10",
-    "preferred_time_range": "manana",
-    "specific_service": "Visita guiada",
-    "conversation_summary": "Quiere saber si hay espacio para una reunion informativa.",
-    "timezone": "America/Lima"
-  }'
-```
-
-Respuesta resumida:
-
-```json
-{
-  "ok": true,
-  "tool": "check_availability",
-  "availability": {
-    "available": true,
-    "suggested_slots": [
-      {
-        "start_iso": "2026-05-10T09:30:00-05:00",
-        "end_iso": "2026-05-10T10:00:00-05:00",
-        "label": "2026-05-10 09:30"
-      }
-    ]
-  },
-  "state": {
-    "requested_meeting": true,
-    "preferred_date": "2026-05-10",
-    "preferred_time_range": "09:00-12:00",
-    "lead_status": "reunion_en_proceso"
-  }
-}
-```
-
 ### `POST /api/elevenlabs/create-meeting`
 
 Reglas implementadas:
@@ -403,6 +413,7 @@ Reglas implementadas:
 - Usa ID deterministico para ayudar a evitar duplicados.
 - Usa store local de idempotencia.
 - Agrega attendees si viene `lead_email`.
+- Usa `sendUpdates: 'all'`.
 - `state.lead_status = reunion_agendada`
 
 Ejemplo:
@@ -422,28 +433,6 @@ curl -X POST http://localhost:3000/api/elevenlabs/create-meeting \
   }'
 ```
 
-Respuesta resumida:
-
-```json
-{
-  "ok": true,
-  "tool": "create_meeting",
-  "booking": {
-    "meeting_booked": true,
-    "calendar_event_id": "google-event-123",
-    "calendar_event_link": "https://calendar.google.com/...",
-    "meeting_datetime_iso": "2026-05-15T10:00:00-05:00",
-    "timezone": "America/Lima"
-  },
-  "state": {
-    "lead_status": "reunion_agendada",
-    "preferred_date": "2026-05-15",
-    "preferred_time_range": "10:00-10:30",
-    "requested_meeting": true
-  }
-}
-```
-
 ### `POST /api/elevenlabs/save-lead-note`
 
 Reglas implementadas:
@@ -455,44 +444,6 @@ Reglas implementadas:
   - `lead_status = calificando`
   - `lead_language = es`
 
-Ejemplo:
-
-```bash
-curl -X POST http://localhost:3000/api/elevenlabs/save-lead-note \
-  -H "Content-Type: application/json" \
-  -H "X-Agent-API-Key: YOUR_SECRET" \
-  -d '{
-    "lead_name": "Carlos Torres",
-    "lead_phone": "+51987654321",
-    "lead_email": "carlos@example.com",
-    "lead_interest_category": "Membresias",
-    "specific_service": "Membresia premium",
-    "requested_quote": "si",
-    "requested_meeting": false,
-    "conversation_summary": "Solicita cotizacion.",
-    "channel_name": "whatsapp"
-  }'
-```
-
-Respuesta resumida:
-
-```json
-{
-  "ok": true,
-  "tool": "save_lead_note",
-  "lead": {
-    "lead_name": "Carlos Torres",
-    "lead_email": "carlos@example.com",
-    "requested_quote": true,
-    "requested_meeting": false,
-    "lead_status": "calificando"
-  },
-  "state": {
-    "lead_status": "calificando"
-  }
-}
-```
-
 ### `POST /api/elevenlabs/handoff-to-human`
 
 Reglas implementadas:
@@ -502,35 +453,22 @@ Reglas implementadas:
 - Si no llega `escalation_reason`, usa `solicitud_explicita_del_usuario`.
 - Si no llega `handoff_phone`, usa `HANDOFF_PHONE`.
 
-Ejemplo:
+### `GET /auth/google/start`
 
-```bash
-curl -X POST http://localhost:3000/api/elevenlabs/handoff-to-human \
-  -H "Content-Type: application/json" \
-  -H "X-Agent-API-Key: YOUR_SECRET" \
-  -d '{
-    "lead_name": "Ana Ruiz",
-    "lead_phone": "+51955444333",
-    "conversation_summary": "Quiere hablar con una persona del equipo."
-  }'
-```
+- Solo aplica cuando `GOOGLE_AUTH_MODE=oauth_user`.
+- Redirige al consentimiento de Google.
+- Usa:
+  - `access_type=offline`
+  - `include_granted_scopes=true`
+  - `prompt=consent`
+  - scope `https://www.googleapis.com/auth/calendar.events`
 
-Respuesta resumida:
+### `GET /auth/google/callback`
 
-```json
-{
-  "ok": true,
-  "tool": "handoff_to_human",
-  "handoff": {
-    "success": true,
-    "escalation_reason": "solicitud_explicita_del_usuario",
-    "handoff_phone": "+51999888777"
-  },
-  "state": {
-    "lead_status": "escalado"
-  }
-}
-```
+- Recibe el `code`.
+- Lo canjea por tokens.
+- Guarda el `refresh_token`.
+- Responde `Google Calendar connected successfully`.
 
 ## Metricas
 
@@ -582,12 +520,17 @@ Eventos de negocio:
 - `google_calendar_error`
 - `validation_error`
 - `auth_failure`
+- `google_oauth_start`
+- `google_oauth_callback_success`
+- `google_oauth_callback_failed`
+- `google_oauth_not_connected`
 
 Protecciones de logging:
 
 - No se loggea la private key.
 - No se loggea la API key completa.
 - Email y telefono se enmascaran en logs de negocio.
+- El refresh token OAuth no se imprime en logs.
 
 ## Seguridad minima implementada
 
@@ -607,6 +550,7 @@ Archivos:
 - `data/leads.json`
 - `data/handoffs.json`
 - `data/idempotency.json`
+- `data/google-oauth-token.json`
 
 Detalles:
 
@@ -618,9 +562,13 @@ Detalles:
 ## Decisiones de implementacion
 
 - `check_availability` usa FreeBusy API real y slots de 30 minutos.
-- Si una franja concreta no tiene huecos y no era la franja completa del negocio, se amplía al horario comercial del mismo dia.
+- Si una franja concreta no tiene huecos y no era la franja completa del negocio, se amplia al horario comercial del mismo dia.
 - `create_meeting` usa un event ID deterministico basado en lead + fecha para reducir duplicados.
 - Ademas se guarda una respuesta en `idempotency.json` para tolerar reintentos.
+- Google Calendar soporta dos estrategias de auth configurables por `GOOGLE_AUTH_MODE`.
+- El refresh token OAuth se persiste en `DATA_DIR/google-oauth-token.json`.
+- Cuando `GOOGLE_AUTH_MODE=oauth_user`, el backend exige conexion previa y muestra un error accionable si falta el refresh token.
+- `events.insert` usa `sendUpdates: 'all'` para invitaciones reales a attendees.
 - `GOOGLE_PRIVATE_KEY` se normaliza reemplazando `\n` por saltos reales.
 - Los schemas Zod son tolerantes con valores string/number enviados por el LLM.
 
@@ -634,6 +582,7 @@ Detalles:
   - Verifica configuracion cargada.
   - Verifica acceso al directorio de datos.
   - Verifica que el cliente de Google pueda inicializarse.
+  - En `oauth_user`, falla de forma accionable si todavia no existe refresh token.
 
 ## Docker
 
@@ -651,8 +600,39 @@ docker run --rm -p 3000:3000 --env-file .env alma-quinta-elevenlabs-backend
 
 ## Probar manualmente
 
-1. Arranca el backend.
-2. Lanza cualquiera de los `curl` anteriores.
-3. Revisa `GET /metrics`.
-4. Revisa el contenido de `data/leads.json` y `data/handoffs.json`.
+### Flujo A: rollback / compatibilidad
 
+1. En `.env` usa:
+
+```env
+GOOGLE_AUTH_MODE=service_account
+```
+
+2. Arranca el backend.
+3. Llama `POST /api/elevenlabs/create-meeting`.
+4. El backend sigue creando eventos como hoy.
+
+### Flujo B: OAuth listo para attendees reales
+
+1. En `.env` usa:
+
+```env
+GOOGLE_AUTH_MODE=oauth_user
+GOOGLE_OAUTH_CLIENT_ID=...
+GOOGLE_OAUTH_CLIENT_SECRET=...
+GOOGLE_OAUTH_REDIRECT_URI=http://localhost:3000/auth/google/callback
+GOOGLE_CALENDAR_ID=primary
+```
+
+2. Arranca el backend.
+3. Abre en navegador:
+
+```text
+http://localhost:3000/auth/google/start
+```
+
+4. Autoriza con la cuenta duena del calendario.
+5. Completa el callback.
+6. Verifica que exista `data/google-oauth-token.json`.
+7. Llama `POST /api/elevenlabs/create-meeting` enviando `lead_email`.
+8. Google Calendar ya podra crear el evento con attendees reales.

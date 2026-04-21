@@ -11,6 +11,7 @@ export const LEAD_STATUSES = [
 ] as const;
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
+export type GoogleAuthMode = 'service_account' | 'oauth_user';
 
 export interface AppEnv {
   NODE_ENV: 'development' | 'test' | 'production';
@@ -23,9 +24,13 @@ export interface AppEnv {
   BUSINESS_HOURS_START: string;
   BUSINESS_HOURS_END: string;
   DEFAULT_MEETING_DURATION_MINUTES: number;
+  GOOGLE_AUTH_MODE: GoogleAuthMode;
   GOOGLE_PROJECT_ID: string;
   GOOGLE_CLIENT_EMAIL: string;
   GOOGLE_PRIVATE_KEY: string;
+  GOOGLE_OAUTH_CLIENT_ID: string;
+  GOOGLE_OAUTH_CLIENT_SECRET: string;
+  GOOGLE_OAUTH_REDIRECT_URI: string;
   GOOGLE_CALENDAR_ID: string;
   HANDOFF_PHONE: string;
   BOOKING_REFERENCE: string;
@@ -106,6 +111,11 @@ export interface IdempotencyRecord {
     meeting_datetime_iso: string;
     timezone: string;
   };
+}
+
+export interface GoogleOAuthTokenRecord {
+  refresh_token: string;
+  updated_at: string;
 }
 
 export interface CreateMeetingResult {

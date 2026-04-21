@@ -44,7 +44,7 @@ describe('POST /api/elevenlabs/create-meeting', () => {
       metrics,
       logger,
       idempotencyRepository,
-      () => mockClient as never,
+      async () => mockClient as never,
     );
 
     const app = createApp({
@@ -78,6 +78,7 @@ describe('POST /api/elevenlabs/create-meeting', () => {
 
     const firstCall = insertSpy.mock.calls[0][0];
     expect(firstCall.calendarId).toBe(env.GOOGLE_CALENDAR_ID);
+    expect(firstCall.sendUpdates).toBe('all');
     expect(firstCall.requestBody.summary).toContain('Alma Quinta');
     expect(firstCall.requestBody.attendees).toEqual([{ email: 'lucia@example.com' }]);
   });

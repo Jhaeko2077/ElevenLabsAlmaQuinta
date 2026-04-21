@@ -5,3 +5,4 @@ coverage/
 *.log
 data/*.tmp
 data/*.bak
+data/google-oauth-token.json
