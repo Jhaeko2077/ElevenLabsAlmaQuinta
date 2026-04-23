@@ -18,5 +18,161 @@
       "meeting_datetime_iso": "2026-05-12T14:00:00-05:00",
       "timezone": "America/Lima"
     }
+  },
+  "meeting:aqa640e5961b79273d8fca507f647450": {
+    "key": "meeting:aqa640e5961b79273d8fca507f647450",
+    "created_at": "2026-04-21T21:30:16.877Z",
+    "response": {
+      "calendar_event_id": "aqa640e5961b79273d8fca507f647450",
+      "calendar_event_link": "https://www.google.com/calendar/event?eid=YXFhNjQwZTU5NjFiNzkyNzNkOGZjYTUwN2Y2NDc0NTAgamVpY29iaGlyb3NoaUBt",
+      "meeting_datetime_iso": "2026-05-15T10:00:00-05:00",
+      "timezone": "America/Lima"
+    }
+  },
+  "meeting:aq4b694298f5ad25415f46e1aaec6a7d": {
+    "key": "meeting:aq4b694298f5ad25415f46e1aaec6a7d",
+    "created_at": "2026-04-23T12:59:55.879Z",
+    "response": {
+      "calendar_event_id": "aq4b694298f5ad25415f46e1aaec6a7d",
+      "calendar_event_link": "https://www.google.com/calendar/event?eid=YXE0YjY5NDI5OGY1YWQyNTQxNWY0NmUxYWFlYzZhN2QgamVpY29iaGlyb3NoaUBt",
+      "meeting_datetime_iso": "2026-04-28T10:00:00-05:00",
+      "timezone": "America/Lima"
+    }
+  },
+  "create_meeting:meeting-lilian-2026-04-28-1000-v1": {
+    "key": "create_meeting:meeting-lilian-2026-04-28-1000-v1",
+    "tool": "create_meeting",
+    "status": "succeeded",
+    "fingerprint": "f7851e39be1b4b528667ac929688f873183d5cbba7b5f41975812defdf13ba8c",
+    "created_at": "2026-04-23T15:10:09.913Z",
+    "updated_at": "2026-04-23T15:10:10.961Z",
+    "started_at": "2026-04-23T15:10:09.913Z",
+    "finished_at": "2026-04-23T15:10:10.961Z",
+    "lock_expires_at": null,
+    "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+    "conversation_id": "conv-lilian-001",
+    "external_conversation_id": "wa-987654321-lilian-001",
+    "calendar_event_id": "aq12855fb10ec06e7276c11d4a5913ef",
+    "response": {
+      "meeting_booked": true,
+      "calendar_event_id": "aq12855fb10ec06e7276c11d4a5913ef",
+      "calendar_event_link": "https://www.google.com/calendar/event?eid=YXExMjg1NWZiMTBlYzA2ZTcyNzZjMTFkNGE1OTEzZWYgamVpY29iaGlyb3NoaUBt",
+      "meeting_datetime_iso": "2026-04-28T10:00:00-05:00",
+      "timezone": "America/Lima",
+      "preferred_date": "2026-04-28",
+      "preferred_time_range": "10:00-10:30",
+      "requested_meeting": true,
+      "lead_status": "reunion_agendada",
+      "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+      "conversation_id": "conv-lilian-001",
+      "external_conversation_id": "wa-987654321-lilian-001",
+      "idempotency": {
+        "reused": false,
+        "key": "create_meeting:meeting-lilian-2026-04-28-1000-v1"
+      }
+    },
+    "error": null
+  },
+  "create_meeting:fingerprint:69bd8536dd4c14dd3346e63ca31f63788fd7b4d6325e49322ec826772837321c": {
+    "key": "create_meeting:fingerprint:69bd8536dd4c14dd3346e63ca31f63788fd7b4d6325e49322ec826772837321c",
+    "tool": "create_meeting",
+    "status": "succeeded",
+    "fingerprint": "69bd8536dd4c14dd3346e63ca31f63788fd7b4d6325e49322ec826772837321c",
+    "created_at": "2026-04-23T15:10:38.525Z",
+    "updated_at": "2026-04-23T15:10:39.643Z",
+    "started_at": "2026-04-23T15:10:38.525Z",
+    "finished_at": "2026-04-23T15:10:39.643Z",
+    "lock_expires_at": null,
+    "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+    "conversation_id": "conv-lilian-001",
+    "external_conversation_id": "wa-987654321-lilian-001",
+    "calendar_event_id": "aqcd655605441202e7ff78918cd98561",
+    "response": {
+      "meeting_booked": true,
+      "calendar_event_id": "aqcd655605441202e7ff78918cd98561",
+      "calendar_event_link": "https://www.google.com/calendar/event?eid=YXFjZDY1NTYwNTQ0MTIwMmU3ZmY3ODkxOGNkOTg1NjEgamVpY29iaGlyb3NoaUBt",
+      "meeting_datetime_iso": "2026-04-28T11:00:00-05:00",
+      "timezone": "America/Lima",
+      "preferred_date": "2026-04-28",
+      "preferred_time_range": "11:00-11:30",
+      "requested_meeting": true,
+      "lead_status": "reunion_agendada",
+      "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+      "conversation_id": "conv-lilian-001",
+      "external_conversation_id": "wa-987654321-lilian-001",
+      "idempotency": {
+        "reused": false,
+        "key": "create_meeting:fingerprint:69bd8536dd4c14dd3346e63ca31f63788fd7b4d6325e49322ec826772837321c"
+      }
+    },
+    "error": null
+  },
+  "create_meeting:meeting-lilian-2026-04-28-1200-v1": {
+    "key": "create_meeting:meeting-lilian-2026-04-28-1200-v1",
+    "tool": "create_meeting",
+    "status": "succeeded",
+    "fingerprint": "e5c01801efa34f18851d2cddcdae4537037777ccb809276f6a76b4f7d1bc09b9",
+    "created_at": "2026-04-23T15:10:47.779Z",
+    "updated_at": "2026-04-23T15:10:48.841Z",
+    "started_at": "2026-04-23T15:10:47.779Z",
+    "finished_at": "2026-04-23T15:10:48.841Z",
+    "lock_expires_at": null,
+    "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+    "conversation_id": "conv-lilian-001",
+    "external_conversation_id": "wa-987654321-lilian-001",
+    "calendar_event_id": "aqf86553903c2e2e714b1dc6cd96cce0",
+    "response": {
+      "meeting_booked": true,
+      "calendar_event_id": "aqf86553903c2e2e714b1dc6cd96cce0",
+      "calendar_event_link": "https://www.google.com/calendar/event?eid=YXFmODY1NTM5MDNjMmUyZTcxNGIxZGM2Y2Q5NmNjZTAgamVpY29iaGlyb3NoaUBt",
+      "meeting_datetime_iso": "2026-04-28T12:00:00-05:00",
+      "timezone": "America/Lima",
+      "preferred_date": "2026-04-28",
+      "preferred_time_range": "12:00-12:30",
+      "requested_meeting": true,
+      "lead_status": "reunion_agendada",
+      "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+      "conversation_id": "conv-lilian-001",
+      "external_conversation_id": "wa-987654321-lilian-001",
+      "idempotency": {
+        "reused": false,
+        "key": "create_meeting:meeting-lilian-2026-04-28-1200-v1"
+      }
+    },
+    "error": null
+  },
+  "create_meeting:meeting-lilian-2026-04-29-1000-v1": {
+    "key": "create_meeting:meeting-lilian-2026-04-29-1000-v1",
+    "tool": "create_meeting",
+    "status": "succeeded",
+    "fingerprint": "9c745cffc9520093a78252809909c9ebb477921aa6331185482dc40cd6fec351",
+    "created_at": "2026-04-23T15:18:53.698Z",
+    "updated_at": "2026-04-23T15:18:54.783Z",
+    "started_at": "2026-04-23T15:18:53.698Z",
+    "finished_at": "2026-04-23T15:18:54.783Z",
+    "lock_expires_at": null,
+    "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+    "conversation_id": "conv-lilian-001",
+    "external_conversation_id": "wa-987654321-lilian-001",
+    "calendar_event_id": "aqd0fd70453b50c823ae62036c170fe2",
+    "response": {
+      "meeting_booked": true,
+      "calendar_event_id": "aqd0fd70453b50c823ae62036c170fe2",
+      "calendar_event_link": "https://www.google.com/calendar/event?eid=YXFkMGZkNzA0NTNiNTBjODIzYWU2MjAzNmMxNzBmZTIgamVpY29iaGlyb3NoaUBt",
+      "meeting_datetime_iso": "2026-04-29T10:00:00-05:00",
+      "timezone": "America/Lima",
+      "preferred_date": "2026-04-29",
+      "preferred_time_range": "10:00-10:30",
+      "requested_meeting": true,
+      "lead_status": "escalado",
+      "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+      "conversation_id": "conv-lilian-001",
+      "external_conversation_id": "wa-987654321-lilian-001",
+      "idempotency": {
+        "reused": false,
+        "key": "create_meeting:meeting-lilian-2026-04-29-1000-v1"
+      }
+    },
+    "error": null
   }
 }

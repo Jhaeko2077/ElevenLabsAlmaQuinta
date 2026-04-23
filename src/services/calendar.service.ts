@@ -1,25 +1,36 @@
-import { createHash } from 'node:crypto';
+﻿import { createHash, randomUUID } from 'node:crypto';
 import type { Logger } from 'pino';
 import type { calendar_v3 } from 'googleapis';
 
 import { AppMetrics } from '../config/metrics';
 import { UpstreamAppError, ValidationAppError } from '../lib/errors';
-import { normalizeEmail, normalizeNullableString, normalizePhone, normalizeTimezone, sanitizeSummary } from '../lib/normalize';
+import {
+  normalizeEmail,
+  normalizeIdentifier,
+  normalizeNullableString,
+  normalizePhone,
+  normalizeTimezone,
+  sanitizeSummary,
+} from '../lib/normalize';
 import { maskEmail, maskPhone } from '../lib/redaction';
 import { addMinutes, formatIsoInTimeZone, parseMeetingDateTimeInput } from '../lib/time';
 import { IdempotencyRepository } from '../repositories/idempotency.repository';
+import { LeadService } from './lead.service';
 import type { AppEnv, BusyWindow, CreateMeetingResult } from '../types';
 
 type CalendarClientFactory = (env: AppEnv) => Promise<calendar_v3.Calendar>;
+
+const IDEMPOTENCY_LOCK_TTL_MS = 2 * 60 * 1000;
 
 function extractErrorStatus(error: unknown): number {
   const maybeError = error as {
     code?: number;
     status?: number;
+    statusCode?: number;
     response?: { status?: number };
   };
 
-  return maybeError.code ?? maybeError.status ?? maybeError.response?.status ?? 502;
+  return maybeError.code ?? maybeError.statusCode ?? maybeError.status ?? maybeError.response?.status ?? 502;
 }
 
 function extractErrorMessage(error: unknown, fallback: string): string {
@@ -33,6 +44,7 @@ function extractErrorMessage(error: unknown, fallback: string): string {
 export class CalendarService {
   private client: calendar_v3.Calendar | null = null;
   private clientPromise: Promise<calendar_v3.Calendar> | null = null;
+  private readonly inFlightMeetings = new Map<string, Promise<CreateMeetingResult>>();
 
   public constructor(
     private readonly env: AppEnv,
@@ -40,6 +52,7 @@ export class CalendarService {
     private readonly logger: Logger,
     private readonly idempotencyRepository: IdempotencyRepository,
     private readonly clientFactory: CalendarClientFactory,
+    private readonly leadService: LeadService,
   ) {}
 
   public async checkReady(): Promise<void> {
@@ -94,6 +107,10 @@ export class CalendarService {
   }
 
   public async bookMeeting(input: {
+    lead_id?: string;
+    conversation_id?: string;
+    external_conversation_id?: string;
+    idempotency_key?: string;
     lead_name?: string;
     lead_phone?: string;
     lead_email?: string;
@@ -111,105 +128,113 @@ export class CalendarService {
       });
     }
 
-    const leadName = normalizeNullableString(input.lead_name) ?? 'Cliente';
-    const leadPhone = normalizePhone(input.lead_phone);
-    const leadEmail = normalizeEmail(input.lead_email);
-    const specificService = normalizeNullableString(input.specific_service);
-    const conversationSummary = sanitizeSummary(input.conversation_summary);
-    const eventId = this.buildDeterministicEventId({
+    const requestedLeadPhone = normalizePhone(input.lead_phone);
+    const requestedLeadEmail = normalizeEmail(input.lead_email);
+    const existingLead = await this.leadService.findLead({
+      lead_id: normalizeIdentifier(input.lead_id),
+      conversation_id: normalizeIdentifier(input.conversation_id),
+      external_conversation_id: normalizeIdentifier(input.external_conversation_id),
+      lead_phone: requestedLeadPhone,
+      lead_email: requestedLeadEmail,
+    });
+
+    const leadId = normalizeIdentifier(input.lead_id) ?? existingLead?.id ?? randomUUID();
+    const conversationId = normalizeIdentifier(input.conversation_id) ?? existingLead?.conversation_id ?? null;
+    const externalConversationId = normalizeIdentifier(input.external_conversation_id)
+      ?? existingLead?.external_conversation_id
+      ?? null;
+    const leadName = normalizeNullableString(input.lead_name) ?? existingLead?.lead_name ?? 'Cliente';
+    const leadPhone = requestedLeadPhone ?? existingLead?.lead_phone ?? null;
+    const persistedLeadEmail = requestedLeadEmail ?? existingLead?.lead_email ?? null;
+    const specificService = normalizeNullableString(input.specific_service) ?? existingLead?.specific_service ?? null;
+    const conversationSummary = sanitizeSummary(input.conversation_summary) ?? existingLead?.conversation_summary ?? null;
+    const idempotencyFingerprint = this.buildIdempotencyFingerprint({
+      leadId,
       leadName,
       leadPhone,
-      leadEmail,
+      leadEmail: persistedLeadEmail,
       meetingDateTimeIso: parsedMeeting.normalizedIso,
+      specificService,
+      timezone,
     });
-    const idempotencyKey = `meeting:${eventId}`;
-    const existingRecord = await this.idempotencyRepository.get(idempotencyKey);
+    const explicitIdempotencyKey = normalizeIdentifier(input.idempotency_key);
+    const idempotencyKey = explicitIdempotencyKey
+      ? `create_meeting:${explicitIdempotencyKey}`
+      : `create_meeting:fingerprint:${idempotencyFingerprint}`;
+    const existingPromise = this.inFlightMeetings.get(idempotencyKey);
 
-    if (existingRecord) {
+    if (existingPromise) {
       this.metrics.idempotencyHitsTotal.inc();
-
       requestLogger.info({
         event: 'meeting_created',
-        source: 'idempotency_store',
-        calendar_event_id: existingRecord.response.calendar_event_id,
-        lead_name: leadName,
-        lead_phone: maskPhone(leadPhone),
-        lead_email: maskEmail(leadEmail),
+        source: 'in_flight',
+        idempotency_key: idempotencyKey,
+        lead_id: leadId,
+        conversation_id: conversationId,
       });
-
-      return {
-        meeting_booked: true,
-        calendar_event_id: existingRecord.response.calendar_event_id,
-        calendar_event_link: existingRecord.response.calendar_event_link,
-        meeting_datetime_iso: existingRecord.response.meeting_datetime_iso,
-        timezone: existingRecord.response.timezone,
-        preferred_date: parsedMeeting.preferredDate,
-        preferred_time_range: parsedMeeting.preferredTimeRange,
-        requested_meeting: true,
-        lead_status: 'reunion_agendada',
-      };
+      return this.withReusedIdempotency(await existingPromise, idempotencyKey);
     }
 
-    const startIso = parsedMeeting.normalizedIso;
-    const endIso = formatIsoInTimeZone(
-      addMinutes(parsedMeeting.start, this.env.DEFAULT_MEETING_DURATION_MINUTES),
+    const reservation = await this.idempotencyRepository.beginExecution({
+      key: idempotencyKey,
+      fingerprint: idempotencyFingerprint,
+      lead_id: leadId,
+      conversation_id: conversationId,
+      external_conversation_id: externalConversationId,
+      lockTtlMs: IDEMPOTENCY_LOCK_TTL_MS,
+    });
+
+    const currentPromise = this.inFlightMeetings.get(idempotencyKey);
+
+    if (!reservation.acquired && currentPromise) {
+      this.metrics.idempotencyHitsTotal.inc();
+      return this.withReusedIdempotency(await currentPromise, idempotencyKey);
+    }
+
+    if (!reservation.acquired) {
+      this.metrics.idempotencyHitsTotal.inc();
+
+      if (reservation.record.status === 'succeeded' && reservation.record.response) {
+        requestLogger.info({
+          event: 'meeting_created',
+          source: 'idempotency_store',
+          idempotency_key: idempotencyKey,
+          lead_id: reservation.record.response.lead_id,
+          conversation_id: reservation.record.response.conversation_id,
+          calendar_event_id: reservation.record.response.calendar_event_id,
+        });
+        return this.withReusedIdempotency(reservation.record.response, idempotencyKey);
+      }
+
+      throw new UpstreamAppError(
+        'Meeting creation already in progress for this idempotency key',
+        { idempotency_key: idempotencyKey },
+        503,
+      );
+    }
+
+    const bookingPromise = this.executeMeetingBooking({
+      idempotencyKey,
+      leadId,
+      conversationId,
+      externalConversationId,
+      leadName,
+      leadPhone,
+      requestedLeadEmail,
+      persistedLeadEmail,
+      specificService,
+      conversationSummary,
       timezone,
-    );
+      parsedMeeting,
+      requestLogger,
+    });
+
+    this.inFlightMeetings.set(idempotencyKey, bookingPromise);
 
     try {
-      const created = await this.createMeeting({
-        calendarId: this.env.GOOGLE_CALENDAR_ID,
-        eventId,
-        summary: `Reunión Alma Quinta - ${leadName}`,
-        description: this.buildDescription({
-          leadName,
-          leadPhone,
-          leadEmail,
-          specificService,
-          conversationSummary,
-        }),
-        timezone,
-        startIso,
-        endIso,
-        attendees: leadEmail ? [{ email: leadEmail }] : [],
-      });
-
-      await this.idempotencyRepository.set({
-        key: idempotencyKey,
-        created_at: new Date().toISOString(),
-        response: {
-          calendar_event_id: created.calendar_event_id,
-          calendar_event_link: created.calendar_event_link,
-          meeting_datetime_iso: startIso,
-          timezone,
-        },
-      });
-
-      this.metrics.meetingsCreatedTotal.inc();
-
-      requestLogger.info({
-        event: 'meeting_created',
-        calendar_event_id: created.calendar_event_id,
-        lead_name: leadName,
-        lead_phone: maskPhone(leadPhone),
-        lead_email: maskEmail(leadEmail),
-        meeting_datetime_iso: startIso,
-      });
-
-      return {
-        meeting_booked: true,
-        calendar_event_id: created.calendar_event_id,
-        calendar_event_link: created.calendar_event_link,
-        meeting_datetime_iso: startIso,
-        timezone,
-        preferred_date: parsedMeeting.preferredDate,
-        preferred_time_range: parsedMeeting.preferredTimeRange,
-        requested_meeting: true,
-        lead_status: 'reunion_agendada',
-      };
-    } catch (error) {
-      this.metrics.meetingsCreateFailuresTotal.inc();
-      throw error;
+      return await bookingPromise;
+    } finally {
+      this.inFlightMeetings.delete(idempotencyKey);
     }
   }
 
@@ -222,6 +247,7 @@ export class CalendarService {
     startIso: string;
     endIso: string;
     attendees: Array<{ email: string }>;
+    extendedPrivateProperties?: Record<string, string>;
   }): Promise<{
     calendar_event_id: string;
     calendar_event_link: string | null;
@@ -247,6 +273,11 @@ export class CalendarService {
             timeZone: input.timezone,
           },
           attendees: input.attendees.length > 0 ? input.attendees : undefined,
+          extendedProperties: input.extendedPrivateProperties
+            ? {
+              private: input.extendedPrivateProperties,
+            }
+            : undefined,
         },
       });
 
@@ -295,6 +326,144 @@ export class CalendarService {
         statusCode === 503 ? 503 : 502,
       );
     }
+  }
+
+  private async executeMeetingBooking(input: {
+    idempotencyKey: string;
+    leadId: string;
+    conversationId: string | null;
+    externalConversationId: string | null;
+    leadName: string;
+    leadPhone: string | null;
+    requestedLeadEmail: string | null;
+    persistedLeadEmail: string | null;
+    specificService: string | null;
+    conversationSummary: string | null;
+    timezone: string;
+    parsedMeeting: NonNullable<ReturnType<typeof parseMeetingDateTimeInput>>;
+    requestLogger: Express.Request['logger'];
+  }): Promise<CreateMeetingResult> {
+    const startIso = input.parsedMeeting.normalizedIso;
+    const endIso = formatIsoInTimeZone(
+      addMinutes(input.parsedMeeting.start, this.env.DEFAULT_MEETING_DURATION_MINUTES),
+      input.timezone,
+    );
+    const eventId = this.buildDeterministicEventId(input.idempotencyKey);
+
+    try {
+      const created = await this.createMeeting({
+        calendarId: this.env.GOOGLE_CALENDAR_ID,
+        eventId,
+        summary: `Reunion Alma Quinta - ${input.leadName}`,
+        description: this.buildDescription({
+          leadName: input.leadName,
+          leadPhone: input.leadPhone,
+          leadEmail: input.persistedLeadEmail,
+          specificService: input.specificService,
+          conversationSummary: input.conversationSummary,
+        }),
+        timezone: input.timezone,
+        startIso,
+        endIso,
+        attendees: input.requestedLeadEmail ? [{ email: input.requestedLeadEmail }] : [],
+        extendedPrivateProperties: this.buildExtendedPrivateProperties({
+          idempotencyKey: input.idempotencyKey,
+          leadId: input.leadId,
+          conversationId: input.conversationId,
+          externalConversationId: input.externalConversationId,
+        }),
+      });
+
+      const lead = await this.leadService.upsertLeadContext({
+        lead_id: input.leadId,
+        conversation_id: input.conversationId ?? undefined,
+        external_conversation_id: input.externalConversationId ?? undefined,
+        lead_name: input.leadName,
+        lead_phone: input.leadPhone ?? undefined,
+        lead_email: input.persistedLeadEmail ?? undefined,
+        specific_service: input.specificService ?? undefined,
+        conversation_summary: input.conversationSummary ?? undefined,
+        requested_meeting: true,
+        preferred_date: input.parsedMeeting.preferredDate,
+        preferred_time_range: input.parsedMeeting.preferredTimeRange,
+        lead_status: 'reunion_agendada',
+      }, {
+        defaultLeadStatus: 'reunion_agendada',
+      });
+
+      const result: CreateMeetingResult = {
+        meeting_booked: true,
+        calendar_event_id: created.calendar_event_id,
+        calendar_event_link: created.calendar_event_link,
+        meeting_datetime_iso: startIso,
+        timezone: input.timezone,
+        preferred_date: input.parsedMeeting.preferredDate,
+        preferred_time_range: input.parsedMeeting.preferredTimeRange,
+        requested_meeting: true,
+        lead_status: lead.lead_status,
+        lead_id: lead.id,
+        conversation_id: lead.conversation_id,
+        external_conversation_id: lead.external_conversation_id,
+        idempotency: {
+          reused: false,
+          key: input.idempotencyKey,
+        },
+      };
+
+      await this.idempotencyRepository.completeSuccess({
+        key: input.idempotencyKey,
+        response: result,
+      });
+
+      this.metrics.meetingsCreatedTotal.inc();
+
+      input.requestLogger.info({
+        event: 'meeting_created',
+        idempotency_key: input.idempotencyKey,
+        calendar_event_id: created.calendar_event_id,
+        lead_id: lead.id,
+        conversation_id: lead.conversation_id,
+        external_conversation_id: lead.external_conversation_id,
+        lead_name: input.leadName,
+        lead_phone: maskPhone(input.leadPhone),
+        lead_email: maskEmail(input.persistedLeadEmail),
+        meeting_datetime_iso: startIso,
+      });
+
+      return result;
+    } catch (error) {
+      this.metrics.meetingsCreateFailuresTotal.inc();
+      await this.markIdempotencyFailure(input.idempotencyKey, error);
+      throw error;
+    }
+  }
+
+  private async markIdempotencyFailure(idempotencyKey: string, error: unknown): Promise<void> {
+    try {
+      const statusCode = extractErrorStatus(error);
+      await this.idempotencyRepository.completeFailure({
+        key: idempotencyKey,
+        message: extractErrorMessage(error, 'Meeting creation failed'),
+        statusCode,
+        retryable: statusCode >= 500 || statusCode === 429,
+      });
+    } catch (repositoryError) {
+      this.logger.error({
+        event: 'idempotency_failure_persist_error',
+        idempotency_key: idempotencyKey,
+        error_message: extractErrorMessage(repositoryError, 'Failed to persist idempotency failure state'),
+      });
+    }
+  }
+
+  private withReusedIdempotency(result: CreateMeetingResult, idempotencyKey: string): CreateMeetingResult {
+    return {
+      ...result,
+      idempotency: {
+        reused: true,
+        key: idempotencyKey,
+      },
+    };
   }
 
   private async getExistingMeeting(calendarId: string, eventId: string): Promise<{
@@ -365,7 +534,7 @@ export class CalendarService {
   }): string {
     const sections = [
       `Lead: ${input.leadName}`,
-      `Teléfono: ${input.leadPhone ?? 'No disponible'}`,
+      `Telefono: ${input.leadPhone ?? 'No disponible'}`,
       `Email: ${input.leadEmail ?? 'No disponible'}`,
       `Servicio: ${input.specificService ?? 'No especificado'}`,
       `Resumen: ${input.conversationSummary ?? 'Sin resumen conversacional'}`,
@@ -378,21 +547,56 @@ export class CalendarService {
     return sections.join('\n');
   }
 
-  private buildDeterministicEventId(input: {
+  private buildIdempotencyFingerprint(input: {
+    leadId: string | null;
     leadName: string;
     leadPhone: string | null;
     leadEmail: string | null;
     meetingDateTimeIso: string;
+    specificService: string | null;
+    timezone: string;
   }): string {
-    const seed = [
-      'alma-quinta',
-      input.leadName.toLowerCase(),
-      input.leadPhone ?? '',
-      input.leadEmail ?? '',
-      input.meetingDateTimeIso,
-    ].join('|');
+    const seed = JSON.stringify({
+      tool_name: 'create_meeting',
+      lead_id: input.leadId,
+      lead_phone: input.leadPhone,
+      lead_email: input.leadEmail,
+      lead_name: input.leadId ? null : input.leadName.toLowerCase(),
+      meeting_datetime_iso: input.meetingDateTimeIso,
+      specific_service: input.specificService?.toLowerCase() ?? null,
+      timezone: input.timezone,
+    });
 
-    const hash = createHash('sha256').update(seed).digest('hex');
+    return createHash('sha256').update(seed).digest('hex');
+  }
+
+  private buildDeterministicEventId(idempotencyKey: string): string {
+    const hash = createHash('sha256').update(idempotencyKey).digest('hex');
     return `aq${hash.slice(0, 30)}`;
+  }
+
+  private buildExtendedPrivateProperties(input: {
+    idempotencyKey: string;
+    leadId: string | null;
+    conversationId: string | null;
+    externalConversationId: string | null;
+  }): Record<string, string> {
+    const properties: Record<string, string> = {
+      idempotency_key: input.idempotencyKey.slice(0, 500),
+    };
+
+    if (input.leadId) {
+      properties.lead_id = input.leadId.slice(0, 200);
+    }
+
+    if (input.conversationId) {
+      properties.conversation_id = input.conversationId.slice(0, 200);
+    }
+
+    if (input.externalConversationId) {
+      properties.external_conversation_id = input.externalConversationId.slice(0, 200);
+    }
+
+    return properties;
   }
 }

@@ -1,4 +1,4 @@
-import type { Logger } from 'pino';
+﻿import type { Logger } from 'pino';
 
 export const LEAD_STATUSES = [
   'nuevo',
@@ -12,6 +12,7 @@ export const LEAD_STATUSES = [
 
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 export type GoogleAuthMode = 'service_account' | 'oauth_user';
+export type IdempotencyStatus = 'in_progress' | 'succeeded' | 'failed_retryable' | 'failed_final';
 
 export interface AppEnv {
   NODE_ENV: 'development' | 'test' | 'production';
@@ -71,10 +72,23 @@ export interface ParsedTimeRange {
   usedDefaultWindow: boolean;
 }
 
+export interface LeadCorrelationFields {
+  lead_id: string | null;
+  conversation_id: string | null;
+  external_conversation_id: string | null;
+}
+
+export interface LeadLookupInput extends Partial<LeadCorrelationFields> {
+  lead_phone?: string | null;
+  lead_email?: string | null;
+}
+
 export interface StoredLead {
   id: string;
   created_at: string;
   updated_at: string;
+  conversation_id: string | null;
+  external_conversation_id: string | null;
   channel_name: string | null;
   lead_name: string | null;
   lead_phone: string | null;
@@ -93,6 +107,9 @@ export interface StoredLead {
 export interface StoredHandoff {
   id: string;
   created_at: string;
+  lead_id: string | null;
+  conversation_id: string | null;
+  external_conversation_id: string | null;
   lead_name: string | null;
   lead_phone: string | null;
   lead_email: string | null;
@@ -102,23 +119,7 @@ export interface StoredHandoff {
   handoff_phone: string | null;
 }
 
-export interface IdempotencyRecord {
-  key: string;
-  created_at: string;
-  response: {
-    calendar_event_id: string;
-    calendar_event_link: string | null;
-    meeting_datetime_iso: string;
-    timezone: string;
-  };
-}
-
-export interface GoogleOAuthTokenRecord {
-  refresh_token: string;
-  updated_at: string;
-}
-
-export interface CreateMeetingResult {
+export interface CreateMeetingResult extends LeadCorrelationFields {
   meeting_booked: boolean;
   calendar_event_id: string;
   calendar_event_link: string | null;
@@ -127,7 +128,37 @@ export interface CreateMeetingResult {
   preferred_date: string;
   preferred_time_range: string;
   requested_meeting: true;
-  lead_status: 'reunion_agendada';
+  lead_status: LeadStatus;
+  idempotency: {
+    reused: boolean;
+    key: string;
+  };
+}
+
+export interface IdempotencyRecord {
+  key: string;
+  tool: 'create_meeting';
+  status: IdempotencyStatus;
+  fingerprint: string | null;
+  created_at: string;
+  updated_at: string;
+  started_at: string;
+  finished_at: string | null;
+  lock_expires_at: string | null;
+  lead_id: string | null;
+  conversation_id: string | null;
+  external_conversation_id: string | null;
+  calendar_event_id: string | null;
+  response: CreateMeetingResult | null;
+  error: {
+    message: string;
+    status_code: number | null;
+  } | null;
+}
+
+export interface GoogleOAuthTokenRecord {
+  refresh_token: string;
+  updated_at: string;
 }
 
 export interface AvailabilityResult {
@@ -151,15 +182,15 @@ export interface AvailabilityResult {
 
 export interface LeadSaveResult {
   lead: StoredLead;
-  state: {
+  state: LeadCorrelationFields & {
     lead_status: LeadStatus;
   };
 }
 
 export interface HandoffResult {
   handoff: StoredHandoff;
-  state: {
-    lead_status: 'escalado';
+  state: LeadCorrelationFields & {
+    lead_status: LeadStatus;
   };
 }
 
@@ -199,3 +230,4 @@ declare global {
 }
 
 export {};
+

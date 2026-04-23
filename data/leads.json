@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+    "created_at": "2026-04-21T21:30:24.765Z",
+    "updated_at": "2026-04-23T15:18:54.780Z",
+    "channel_name": "whatsapp",
+    "lead_name": "Lilian Huaricallo",
+    "lead_phone": "+51987654321",
+    "lead_email": "lilian.huaricallo@example.com",
+    "lead_language": "es",
+    "lead_interest_category": "Desarrollo web",
+    "specific_service": "Cotizacion para creacion de pagina web",
+    "requested_quote": true,
+    "requested_meeting": true,
+    "preferred_date": "2026-04-29",
+    "preferred_time_range": "10:00-10:30",
+    "conversation_summary": "Prueba de idempotencia. Primer intento para crear una reunion de cotizacion de pagina web con metricas de conversion, SEO, velocidad de carga y captacion de leads.",
+    "lead_status": "escalado",
+    "conversation_id": "conv-lilian-001",
+    "external_conversation_id": "wa-987654321-lilian-001"
+  }
+]

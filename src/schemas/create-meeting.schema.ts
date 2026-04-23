@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
 const requiredText = z.preprocess((value) => {
   if (typeof value === 'string') {
@@ -26,6 +26,10 @@ const optionalText = z.preprocess((value) => {
 }, z.string().min(1).optional());
 
 export const createMeetingSchema = z.object({
+  lead_id: optionalText,
+  conversation_id: optionalText,
+  external_conversation_id: optionalText,
+  idempotency_key: optionalText,
   lead_name: optionalText,
   lead_phone: optionalText,
   lead_email: optionalText,

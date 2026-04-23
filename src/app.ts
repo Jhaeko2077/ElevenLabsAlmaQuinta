@@ -1,4 +1,4 @@
-import cors from 'cors';
+﻿import cors from 'cors';
 import express, { type Express, type RequestHandler } from 'express';
 import helmet from 'helmet';
 import type { Logger } from 'pino';
@@ -142,6 +142,7 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
     logger,
     googleOAuthTokenRepository,
   );
+  const leadService = overrides.leadService ?? new LeadService(leadRepository, metrics);
   const calendarService = overrides.calendarService ?? new CalendarService(
     env,
     metrics,
@@ -152,14 +153,19 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
       tokenRepository: googleOAuthTokenRepository,
       logger,
     }),
+    leadService,
   );
   const availabilityService = overrides.availabilityService ?? new AvailabilityService(
     env,
     metrics,
     calendarService,
   );
-  const leadService = overrides.leadService ?? new LeadService(leadRepository, metrics);
-  const handoffService = overrides.handoffService ?? new HandoffService(handoffRepository, metrics, env);
+  const handoffService = overrides.handoffService ?? new HandoffService(
+    handoffRepository,
+    metrics,
+    env,
+    leadService,
+  );
   const controller = overrides.controller ?? new ElevenLabsController(
     metrics,
     availabilityService,

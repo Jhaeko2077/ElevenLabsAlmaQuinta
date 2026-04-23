@@ -1,4 +1,4 @@
-import request from 'supertest';
+﻿import request from 'supertest';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { createApp } from '../src/app';
@@ -74,7 +74,7 @@ describe('POST /api/elevenlabs/check-availability', () => {
     expect(response.body.error.type).toBe('validation_error');
   });
 
-  it('returns suggested slots for a valid preferred_date', async () => {
+  it('returns suggested slots for a valid preferred_date and echoes shared identifiers', async () => {
     const env = createTestEnv(dataDir);
     const queryFreeBusy = vi.fn().mockResolvedValue([
       {
@@ -101,6 +101,8 @@ describe('POST /api/elevenlabs/check-availability', () => {
       .set('Content-Type', 'application/json')
       .set('X-Agent-API-Key', env.AGENT_API_KEY)
       .send({
+        lead_id: 'lead-123',
+        conversation_id: 'conv-123',
         lead_name: 'Maria Perez',
         preferred_date: '2026-05-10',
         preferred_time_range: 'manana',
@@ -112,6 +114,8 @@ describe('POST /api/elevenlabs/check-availability', () => {
     expect(response.body.tool).toBe('check_availability');
     expect(response.body.state.requested_meeting).toBe(true);
     expect(response.body.state.lead_status).toBe('reunion_en_proceso');
+    expect(response.body.state.lead_id).toBe('lead-123');
+    expect(response.body.state.conversation_id).toBe('conv-123');
     expect(response.body.availability.available).toBe(true);
     expect(response.body.availability.suggested_slots).toHaveLength(5);
     expect(queryFreeBusy).toHaveBeenCalledTimes(1);

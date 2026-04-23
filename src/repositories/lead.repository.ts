@@ -1,8 +1,12 @@
-import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
+﻿import { mkdir, readFile, rename, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-import type { StoredLead } from '../types';
+import type { LeadLookupInput, StoredLead } from '../types';
+
+type LeadUpsertInput = Omit<StoredLead, 'id' | 'created_at' | 'updated_at'> & {
+  lead_id?: string | null;
+};
 
 async function ensureJsonArrayFile(filePath: string): Promise<void> {
   await mkdir(path.dirname(filePath), { recursive: true });
@@ -43,40 +47,36 @@ export class LeadRepository {
     return JSON.parse(content) as StoredLead[];
   }
 
-  public async upsert(
-    lead: Omit<StoredLead, 'id' | 'created_at' | 'updated_at'>,
-  ): Promise<StoredLead> {
+  public async findByIdentifiers(criteria: LeadLookupInput): Promise<StoredLead | null> {
+    const leads = await this.list();
+    return this.findMatchingLead(leads, criteria);
+  }
+
+  public async upsert(lead: LeadUpsertInput): Promise<StoredLead> {
     return this.runSerialized(async () => {
       const leads = await this.list();
       const now = new Date().toISOString();
-
-      const index = leads.findIndex((item) => {
-        if (lead.lead_phone && item.lead_phone) {
-          return item.lead_phone === lead.lead_phone;
-        }
-
-        if (lead.lead_email && item.lead_email) {
-          return item.lead_email === lead.lead_email;
-        }
-
-        if (lead.lead_name && item.lead_name) {
-          return item.lead_name.toLowerCase() === lead.lead_name.toLowerCase();
-        }
-
-        return false;
+      const { lead_id, ...recordInput } = lead;
+      const existingLead = this.findMatchingLead(leads, {
+        lead_id,
+        conversation_id: recordInput.conversation_id,
+        external_conversation_id: recordInput.external_conversation_id,
+        lead_phone: recordInput.lead_phone,
+        lead_email: recordInput.lead_email,
       });
+      const index = existingLead ? leads.findIndex((item) => item.id === existingLead.id) : -1;
 
       const nextRecord: StoredLead = index >= 0
         ? {
           ...leads[index],
-          ...lead,
+          ...recordInput,
           updated_at: now,
         }
         : {
-          id: randomUUID(),
+          id: lead_id ?? randomUUID(),
           created_at: now,
           updated_at: now,
-          ...lead,
+          ...recordInput,
         };
 
       if (index >= 0) {
@@ -88,6 +88,58 @@ export class LeadRepository {
       await writeJsonAtomically(this.filePath, `${JSON.stringify(leads, null, 2)}\n`);
       return nextRecord;
     });
+  }
+
+  private findMatchingLead(leads: StoredLead[], criteria: LeadLookupInput): StoredLead | null {
+    if (criteria.lead_id) {
+      return leads.find((item) => item.id === criteria.lead_id) ?? null;
+    }
+
+    if (criteria.conversation_id) {
+      const byConversationId = leads.filter((item) => item.conversation_id === criteria.conversation_id);
+
+      if (byConversationId.length === 1) {
+        return byConversationId[0];
+      }
+    }
+
+    if (criteria.external_conversation_id) {
+      const byExternalConversationId = leads.filter(
+        (item) => item.external_conversation_id === criteria.external_conversation_id,
+      );
+
+      if (byExternalConversationId.length === 1) {
+        return byExternalConversationId[0];
+      }
+    }
+
+    if (criteria.lead_phone && criteria.lead_email) {
+      const byPhoneAndEmail = leads.filter(
+        (item) => item.lead_phone === criteria.lead_phone && item.lead_email === criteria.lead_email,
+      );
+
+      if (byPhoneAndEmail.length === 1) {
+        return byPhoneAndEmail[0];
+      }
+    }
+
+    if (criteria.lead_phone) {
+      const byPhone = leads.filter((item) => item.lead_phone === criteria.lead_phone);
+
+      if (byPhone.length === 1) {
+        return byPhone[0];
+      }
+    }
+
+    if (criteria.lead_email) {
+      const byEmail = leads.filter((item) => item.lead_email === criteria.lead_email);
+
+      if (byEmail.length === 1) {
+        return byEmail[0];
+      }
+    }
+
+    return null;
   }
 
   private async runSerialized<T>(operation: () => Promise<T>): Promise<T> {

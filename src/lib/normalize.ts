@@ -1,4 +1,4 @@
-import { LEAD_STATUSES, type LeadStatus } from '../types';
+﻿import { LEAD_STATUSES, type LeadStatus } from '../types';
 
 function toTrimmedString(value: unknown): string | null {
   if (typeof value === 'string') {
@@ -25,7 +25,7 @@ export function normalizeBoolean(value: unknown, fallback = false): boolean {
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
 
-    if (['1', 'true', 'yes', 'y', 'si', 'sí', 'on'].includes(normalized)) {
+    if (['1', 'true', 'yes', 'y', 'si', 'on'].includes(normalized)) {
       return true;
     }
 
@@ -65,15 +65,15 @@ export function normalizeLanguage(value: unknown, fallback = 'es'): string {
     return language;
   }
 
-  if (['spanish', 'español', 'espanol'].includes(language)) {
+  if (['spanish', 'espanol'].includes(language)) {
     return 'es';
   }
 
-  if (['english', 'inglés', 'ingles'].includes(language)) {
+  if (['english', 'ingles'].includes(language)) {
     return 'en';
   }
 
-  if (['portuguese', 'português', 'portugues'].includes(language)) {
+  if (['portuguese', 'portugues'].includes(language)) {
     return 'pt';
   }
 
@@ -130,4 +130,14 @@ export function sanitizeSummary(value: unknown): string | null {
 
 export function normalizeNullableString(value: unknown): string | null {
   return toTrimmedString(value);
+}
+
+export function normalizeIdentifier(value: unknown): string | null {
+  const identifier = toTrimmedString(value);
+
+  if (!identifier) {
+    return null;
+  }
+
+  return identifier.slice(0, 200);
 }

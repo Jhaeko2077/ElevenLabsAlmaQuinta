@@ -1,1 +1,38 @@
-[]
+[
+  {
+    "id": "856dcd4c-c26d-4c13-af9d-48cef336a114",
+    "created_at": "2026-04-21T21:30:39.415Z",
+    "lead_name": "Ana Ruiz",
+    "lead_phone": "+51955444333",
+    "lead_email": null,
+    "escalation_reason": "solicitud_explicita_del_usuario",
+    "conversation_summary": "Quiere hablar con una persona del equipo.",
+    "lead_status": "escalado",
+    "handoff_phone": "+51999999999"
+  },
+  {
+    "id": "d8f851a2-7e27-4be1-8741-7c21ab1f3f52",
+    "created_at": "2026-04-23T13:00:29.242Z",
+    "lead_name": "Lilian Huaricallo",
+    "lead_phone": "+51987654321",
+    "lead_email": null,
+    "escalation_reason": "solicitud_explicita_del_usuario",
+    "conversation_summary": "Lilian Huaricallo solicita hablar con un asesor humano para profundizar en la propuesta de creacion de pagina web y discutir metricas comerciales y tecnicas antes de confirmar la cotizacion.",
+    "lead_status": "escalado",
+    "handoff_phone": "+51999999999"
+  },
+  {
+    "id": "5ac0a539-86b0-4f76-9f97-ccc9845b6631",
+    "created_at": "2026-04-23T15:11:57.570Z",
+    "lead_id": "cbc6b686-2be2-41e4-bec0-4d810277ab30",
+    "conversation_id": "conv-lilian-001",
+    "external_conversation_id": "wa-987654321-lilian-001",
+    "lead_name": "Lilian Huaricallo",
+    "lead_phone": "+51987654321",
+    "lead_email": "lilian.huaricallo@example.com",
+    "escalation_reason": "solicitud_explicita_del_usuario",
+    "conversation_summary": "La clienta desea hablar con un asesor humano y comparte nuevamente su correo para seguimiento.",
+    "lead_status": "escalado",
+    "handoff_phone": "+51999999999"
+  }
+]

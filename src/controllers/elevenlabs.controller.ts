@@ -1,4 +1,4 @@
-import type { Request, Response } from 'express';
+﻿import type { Request, Response } from 'express';
 
 import { AppMetrics } from '../config/metrics';
 import { AvailabilityService } from '../services/availability.service';
@@ -17,6 +17,9 @@ export class ElevenLabsController {
 
   public async checkAvailability(req: Request, res: Response): Promise<void> {
     const payload = req.validatedBody as {
+      lead_id?: string;
+      conversation_id?: string;
+      external_conversation_id?: string;
       preferred_date: string;
       preferred_time_range?: string;
       timezone?: string;
@@ -28,6 +31,9 @@ export class ElevenLabsController {
     req.logger.info({
       event: 'availability_checked',
       tool_name: 'check_availability',
+      lead_id: payload.lead_id ?? null,
+      conversation_id: payload.conversation_id ?? null,
+      external_conversation_id: payload.external_conversation_id ?? null,
       preferred_date: result.preferred_date,
       preferred_time_range: result.preferred_time_range,
       available: result.availability.available,
@@ -44,12 +50,19 @@ export class ElevenLabsController {
         preferred_date: result.preferred_date,
         preferred_time_range: result.preferred_time_range,
         lead_status: result.lead_status,
+        lead_id: payload.lead_id ?? null,
+        conversation_id: payload.conversation_id ?? null,
+        external_conversation_id: payload.external_conversation_id ?? null,
       },
     });
   }
 
   public async createMeeting(req: Request, res: Response): Promise<void> {
     const payload = req.validatedBody as {
+      lead_id?: string;
+      conversation_id?: string;
+      external_conversation_id?: string;
+      idempotency_key?: string;
       lead_name?: string;
       lead_phone?: string;
       lead_email?: string;
@@ -73,11 +86,15 @@ export class ElevenLabsController {
         meeting_datetime_iso: booking.meeting_datetime_iso,
         timezone: booking.timezone,
       },
+      idempotency: booking.idempotency,
       state: {
         lead_status: booking.lead_status,
         preferred_date: booking.preferred_date,
         preferred_time_range: booking.preferred_time_range,
         requested_meeting: booking.requested_meeting,
+        lead_id: booking.lead_id,
+        conversation_id: booking.conversation_id,
+        external_conversation_id: booking.external_conversation_id,
       },
     });
   }
@@ -108,6 +125,9 @@ export class ElevenLabsController {
       handoff: {
         success: true,
         id: result.handoff.id,
+        lead_id: result.handoff.lead_id,
+        conversation_id: result.handoff.conversation_id,
+        external_conversation_id: result.handoff.external_conversation_id,
         created_at: result.handoff.created_at,
         lead_name: result.handoff.lead_name,
         lead_phone: result.handoff.lead_phone,

@@ -636,3 +636,58 @@ http://localhost:3000/auth/google/start
 6. Verifica que exista `data/google-oauth-token.json`.
 7. Llama `POST /api/elevenlabs/create-meeting` enviando `lead_email`.
 8. Google Calendar ya podra crear el evento con attendees reales.
+
+## Estado monotono del lead
+
+El backend aplica una politica monotona para `lead_status` en cualquier persistencia del lead:
+
+- Orden explicito: `nuevo` < `calificando` < `cotizacion_solicitada` < `reunion_en_proceso` < `reunion_agendada` < `escalado` < `cerrado`
+- La regla central vive en `src/lib/lead-status.ts`
+- `save_lead_note` solo usa `calificando` como default cuando el lead aun no tiene estado previo
+- Si llega un estado mas atrasado que el ya persistido, se conserva el mas avanzado
+- `create_meeting` persiste `reunion_agendada` sin perder estados aun mas avanzados
+- `handoff_to_human` promueve el lead a `escalado`
+
+## Identidad compartida entre tools
+
+Las tools aceptan de forma opcional y compatible:
+
+- `lead_id`
+- `conversation_id`
+- `external_conversation_id`
+
+Comportamiento:
+
+- `save_lead_note` crea o reutiliza el `lead_id` y lo devuelve en `state`
+- `create_meeting` reutiliza el lead previo cuando puede resolverlo por `lead_id`, `conversation_id`, `external_conversation_id`, `lead_phone` o `lead_email`
+- `handoff_to_human` reutiliza la misma identidad y la devuelve en `state` y `handoff`
+- `check_availability` acepta y devuelve estos identificadores para mantener correlacion en ElevenLabs
+- La persistencia de leads guarda la ultima `conversation_id` y `external_conversation_id` conocidas del lead
+
+## Enriquecimiento de handoff
+
+`handoff_to_human` intenta completar `lead_email` cuando no llega en el request:
+
+1. Usa `lead_email` del request si existe.
+2. Si falta, busca un lead previo en este orden: `lead_id`, `conversation_id`, `external_conversation_id`, `lead_phone`, `lead_email`.
+3. Si encuentra un lead confiable, reutiliza su `lead_email`.
+4. Si no encuentra coincidencia confiable, mantiene `lead_email = null` y deja trazabilidad en logs.
+
+## Idempotencia de create_meeting
+
+`create_meeting` ahora usa una estrategia de dos capas:
+
+1. Store persistente en `data/idempotency.json`
+   - Estados: `in_progress`, `succeeded`, `failed_retryable`, `failed_final`
+   - Si una key ya termino en `succeeded`, se reutiliza exactamente la respuesta previa
+   - Si una key esta `in_progress` dentro del TTL, no se dispara otro `events.insert`
+2. Event ID deterministico en Google Calendar
+   - Se deriva de la key de idempotencia efectiva
+   - Si hubo un fallo intermedio despues del insert pero antes de persistir el exito local, un retry cae en `409` y el backend recupera el evento con `events.get`
+
+Detalles practicos:
+
+- `create_meeting` acepta `idempotency_key` opcional
+- Si no llega, el backend genera un fingerprint estable con `lead_id` o contacto, `meeting_datetime_iso`, `specific_service` y `timezone`
+- La respuesta agrega `idempotency: { reused, key }` sin romper el contrato previo
+- El evento de Google Calendar guarda `extendedProperties.private` con `idempotency_key`, `lead_id`, `conversation_id` y `external_conversation_id`

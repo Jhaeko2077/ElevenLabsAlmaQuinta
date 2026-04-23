@@ -1,4 +1,4 @@
-import { z } from 'zod';
+﻿import { z } from 'zod';
 
 const optionalText = z.preprocess((value) => {
   if (typeof value === 'string') {
@@ -16,6 +16,9 @@ const optionalText = z.preprocess((value) => {
 const optionalBooleanish = z.union([z.boolean(), z.string(), z.number()]).optional();
 
 export const saveLeadNoteSchema = z.object({
+  lead_id: optionalText,
+  conversation_id: optionalText,
+  external_conversation_id: optionalText,
   lead_name: optionalText,
   lead_phone: optionalText,
   lead_email: optionalText,
