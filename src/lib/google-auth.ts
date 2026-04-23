@@ -11,7 +11,7 @@ export const GOOGLE_SERVICE_ACCOUNT_SCOPES = [
 ];
 
 export const GOOGLE_OAUTH_USER_SCOPES = [
-  'https://www.googleapis.com/auth/calendar.events',
+  'https://www.googleapis.com/auth/calendar',
 ];
 
 export function normalizeGooglePrivateKey(privateKey: string): string {
