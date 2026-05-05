@@ -10,9 +10,48 @@ export const LEAD_STATUSES = [
   'cerrado',
 ] as const;
 
+export const WEBSITE_PROJECT_TYPES = [
+  'landing_page',
+  'corporate_website',
+  'ecommerce',
+  'website_redesign',
+  'web_maintenance',
+  'booking_website',
+  'web_app',
+  'not_sure',
+  'other',
+] as const;
+
+export const WEBSITE_RECOMMENDED_SERVICES = [
+  'landing_page',
+  'corporate_website',
+  'ecommerce_development',
+  'website_redesign',
+  'website_maintenance',
+  'booking_website',
+  'custom_web_development',
+  'consultation_needed',
+] as const;
+
+export const WEBSITE_URGENCY_LEVELS = ['low', 'medium', 'high'] as const;
+export const WEBSITE_LEAD_TEMPERATURES = ['cold', 'warm', 'hot'] as const;
+export const WEBSITE_NEXT_STEPS = [
+  'schedule_meeting',
+  'save_lead',
+  'human_follow_up',
+  'send_information',
+  'continue_qualification',
+] as const;
+
 export type LeadStatus = (typeof LEAD_STATUSES)[number];
 export type GoogleAuthMode = 'service_account' | 'oauth_user';
 export type IdempotencyStatus = 'in_progress' | 'succeeded' | 'failed_retryable' | 'failed_final';
+export type WebsiteProjectType = (typeof WEBSITE_PROJECT_TYPES)[number];
+export type WebsiteRecommendedService = (typeof WEBSITE_RECOMMENDED_SERVICES)[number];
+export type WebsiteUrgencyLevel = (typeof WEBSITE_URGENCY_LEVELS)[number];
+export type WebsiteLeadTemperature = (typeof WEBSITE_LEAD_TEMPERATURES)[number];
+export type WebsiteNextStep = (typeof WEBSITE_NEXT_STEPS)[number];
+export type SlackNotificationStatus = 'sent' | 'skipped' | 'failed';
 
 export interface AppEnv {
   NODE_ENV: 'development' | 'test' | 'production';
@@ -39,6 +78,13 @@ export interface AppEnv {
   ENABLE_METRICS: boolean;
   RATE_LIMIT_WINDOW_MS: number;
   RATE_LIMIT_MAX_REQUESTS: number;
+  ENABLE_SLACK_NOTIFICATIONS: boolean;
+  SLACK_WEBHOOK_URL: string;
+  SLACK_CHANNEL: string;
+  SLACK_NOTIFY_MIN_TEMPERATURE: WebsiteLeadTemperature;
+  SLACK_NOTIFY_ON_SCHEDULE_MEETING: boolean;
+  SLACK_APP_NAME: string;
+  SLACK_NOTIFICATIONS_TIMEOUT_MS: number;
 }
 
 export interface BusyWindow {
@@ -102,6 +148,22 @@ export interface StoredLead {
   preferred_time_range: string | null;
   conversation_summary: string | null;
   lead_status: LeadStatus;
+  company_name?: string | null;
+  project_type?: WebsiteProjectType | null;
+  business_goal?: string | null;
+  current_website?: string | null;
+  required_features?: string | null;
+  domain_hosting_status?: string | null;
+  available_materials?: string | null;
+  desired_timeline?: string | null;
+  approximate_budget?: string | null;
+  urgency_level?: WebsiteUrgencyLevel | null;
+  lead_temperature?: WebsiteLeadTemperature | null;
+  recommended_service?: WebsiteRecommendedService | null;
+  project_summary?: string | null;
+  next_step?: WebsiteNextStep | null;
+  slack_notified_at?: string | null;
+  slack_notification_status?: SlackNotificationStatus | null;
 }
 
 export interface StoredHandoff {
@@ -194,6 +256,34 @@ export interface HandoffResult {
   };
 }
 
+export interface WebsiteProjectQualification {
+  project_type: WebsiteProjectType;
+  business_goal: string;
+  recommended_service: WebsiteRecommendedService;
+  lead_temperature: WebsiteLeadTemperature;
+  urgency_level: WebsiteUrgencyLevel;
+  project_summary: string;
+  next_step: WebsiteNextStep;
+}
+
+export interface SlackNotificationResult {
+  status: SlackNotificationStatus;
+  reason?: string;
+}
+
+export interface WebsiteProjectQualificationResult {
+  lead: StoredLead;
+  qualification: WebsiteProjectQualification;
+  state: LeadCorrelationFields & WebsiteProjectQualification & {
+    lead_status: LeadStatus;
+    requested_quote: true;
+    requested_meeting: boolean;
+  };
+  notifications: {
+    slack: SlackNotificationResult;
+  };
+}
+
 export interface CalendarServiceLike {
   checkReady(): Promise<void>;
   queryFreeBusy(window: {
@@ -230,4 +320,3 @@ declare global {
 }
 
 export {};
-

@@ -1,4 +1,4 @@
-import { mkdtemp, rm } from 'node:fs/promises';
+﻿import { mkdtemp, rm } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -40,6 +40,13 @@ export function createTestEnv(dataDir: string): AppEnv {
     ENABLE_METRICS: true,
     RATE_LIMIT_WINDOW_MS: 60000,
     RATE_LIMIT_MAX_REQUESTS: 100,
+    ENABLE_SLACK_NOTIFICATIONS: false,
+    SLACK_WEBHOOK_URL: '',
+    SLACK_CHANNEL: '#elevenlabs',
+    SLACK_NOTIFY_MIN_TEMPERATURE: 'warm',
+    SLACK_NOTIFY_ON_SCHEDULE_MEETING: true,
+    SLACK_APP_NAME: 'Alma Quinta Leads',
+    SLACK_NOTIFICATIONS_TIMEOUT_MS: 5000,
   };
 }
 
@@ -49,3 +56,4 @@ export function createTestLoggerAndMetrics(env: AppEnv) {
     metrics: createMetrics(env),
   };
 }
+

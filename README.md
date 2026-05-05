@@ -1,4 +1,4 @@
-# Alma Quinta ElevenLabs Backend
+﻿# Alma Quinta ElevenLabs Backend
 
 Backend HTTP en Node.js 20 + TypeScript para tools de ElevenLabs integradas con Google Calendar, persistencia local simple y soporte dual de autenticacion Google:
 
@@ -13,6 +13,7 @@ La migracion a OAuth de usuario queda lista para probar invitados reales sin per
 - `POST /api/elevenlabs/create-meeting`
 - `POST /api/elevenlabs/save-lead-note`
 - `POST /api/elevenlabs/handoff-to-human`
+- `POST /api/elevenlabs/qualify-website-project`
 - `GET /auth/google/start`
 - `GET /auth/google/callback`
 - `GET /`
@@ -44,68 +45,68 @@ La migracion a OAuth de usuario queda lista para probar invitados reales sin per
 
 ```text
 .
-├── package.json
-├── tsconfig.json
-├── .gitignore
-├── .env.example
-├── README.md
-├── Dockerfile
-├── src
-│   ├── app.ts
-│   ├── server.ts
-│   ├── config
-│   │   ├── env.ts
-│   │   ├── logger.ts
-│   │   └── metrics.ts
-│   ├── middleware
-│   │   ├── auth.ts
-│   │   ├── error-handler.ts
-│   │   ├── not-found.ts
-│   │   ├── request-id.ts
-│   │   └── validate.ts
-│   ├── routes
-│   │   ├── auth.ts
-│   │   ├── health.ts
-│   │   ├── metrics.ts
-│   │   └── elevenlabs.ts
-│   ├── controllers
-│   │   └── elevenlabs.controller.ts
-│   ├── services
-│   │   ├── availability.service.ts
-│   │   ├── calendar.service.ts
-│   │   ├── google-oauth.service.ts
-│   │   ├── handoff.service.ts
-│   │   └── lead.service.ts
-│   ├── repositories
-│   │   ├── google-oauth-token.repository.ts
-│   │   ├── lead.repository.ts
-│   │   ├── handoff.repository.ts
-│   │   └── idempotency.repository.ts
-│   ├── schemas
-│   │   ├── check-availability.schema.ts
-│   │   ├── create-meeting.schema.ts
-│   │   ├── save-lead-note.schema.ts
-│   │   └── handoff-to-human.schema.ts
-│   ├── lib
-│   │   ├── google-auth.ts
-│   │   ├── time.ts
-│   │   ├── normalize.ts
-│   │   ├── redaction.ts
-│   │   └── errors.ts
-│   └── types
-│       └── index.ts
-├── data
-│   ├── leads.json
-│   ├── handoffs.json
-│   └── idempotency.json
-└── tests
-    ├── check-availability.spec.ts
-    ├── create-meeting.spec.ts
-    ├── google-oauth.spec.ts
-    ├── handoff-to-human.spec.ts
-    ├── health.spec.ts
-    ├── save-lead-note.spec.ts
-    └── test-utils.ts
+â”œâ”€â”€ package.json
+â”œâ”€â”€ tsconfig.json
+â”œâ”€â”€ .gitignore
+â”œâ”€â”€ .env.example
+â”œâ”€â”€ README.md
+â”œâ”€â”€ Dockerfile
+â”œâ”€â”€ src
+â”‚   â”œâ”€â”€ app.ts
+â”‚   â”œâ”€â”€ server.ts
+â”‚   â”œâ”€â”€ config
+â”‚   â”‚   â”œâ”€â”€ env.ts
+â”‚   â”‚   â”œâ”€â”€ logger.ts
+â”‚   â”‚   â””â”€â”€ metrics.ts
+â”‚   â”œâ”€â”€ middleware
+â”‚   â”‚   â”œâ”€â”€ auth.ts
+â”‚   â”‚   â”œâ”€â”€ error-handler.ts
+â”‚   â”‚   â”œâ”€â”€ not-found.ts
+â”‚   â”‚   â”œâ”€â”€ request-id.ts
+â”‚   â”‚   â””â”€â”€ validate.ts
+â”‚   â”œâ”€â”€ routes
+â”‚   â”‚   â”œâ”€â”€ auth.ts
+â”‚   â”‚   â”œâ”€â”€ health.ts
+â”‚   â”‚   â”œâ”€â”€ metrics.ts
+â”‚   â”‚   â””â”€â”€ elevenlabs.ts
+â”‚   â”œâ”€â”€ controllers
+â”‚   â”‚   â””â”€â”€ elevenlabs.controller.ts
+â”‚   â”œâ”€â”€ services
+â”‚   â”‚   â”œâ”€â”€ availability.service.ts
+â”‚   â”‚   â”œâ”€â”€ calendar.service.ts
+â”‚   â”‚   â”œâ”€â”€ google-oauth.service.ts
+â”‚   â”‚   â”œâ”€â”€ handoff.service.ts
+â”‚   â”‚   â””â”€â”€ lead.service.ts
+â”‚   â”œâ”€â”€ repositories
+â”‚   â”‚   â”œâ”€â”€ google-oauth-token.repository.ts
+â”‚   â”‚   â”œâ”€â”€ lead.repository.ts
+â”‚   â”‚   â”œâ”€â”€ handoff.repository.ts
+â”‚   â”‚   â””â”€â”€ idempotency.repository.ts
+â”‚   â”œâ”€â”€ schemas
+â”‚   â”‚   â”œâ”€â”€ check-availability.schema.ts
+â”‚   â”‚   â”œâ”€â”€ create-meeting.schema.ts
+â”‚   â”‚   â”œâ”€â”€ save-lead-note.schema.ts
+â”‚   â”‚   â””â”€â”€ handoff-to-human.schema.ts
+â”‚   â”œâ”€â”€ lib
+â”‚   â”‚   â”œâ”€â”€ google-auth.ts
+â”‚   â”‚   â”œâ”€â”€ time.ts
+â”‚   â”‚   â”œâ”€â”€ normalize.ts
+â”‚   â”‚   â”œâ”€â”€ redaction.ts
+â”‚   â”‚   â””â”€â”€ errors.ts
+â”‚   â””â”€â”€ types
+â”‚       â””â”€â”€ index.ts
+â”œâ”€â”€ data
+â”‚   â”œâ”€â”€ leads.json
+â”‚   â”œâ”€â”€ handoffs.json
+â”‚   â””â”€â”€ idempotency.json
+â””â”€â”€ tests
+    â”œâ”€â”€ check-availability.spec.ts
+    â”œâ”€â”€ create-meeting.spec.ts
+    â”œâ”€â”€ google-oauth.spec.ts
+    â”œâ”€â”€ handoff-to-human.spec.ts
+    â”œâ”€â”€ health.spec.ts
+    â”œâ”€â”€ save-lead-note.spec.ts
+    â””â”€â”€ test-utils.ts
 ```
 
 ## Desarrollo local
@@ -162,6 +163,7 @@ ngrok http 3000
    - `POST https://TU-URL/api/elevenlabs/create-meeting`
    - `POST https://TU-URL/api/elevenlabs/save-lead-note`
    - `POST https://TU-URL/api/elevenlabs/handoff-to-human`
+   - `POST https://TU-URL/api/elevenlabs/qualify-website-project`
 5. En el header secreto de ElevenLabs usa `X-Agent-API-Key`.
 6. El valor del secreto debe ser exactamente el mismo `AGENT_API_KEY` del backend.
 
@@ -195,6 +197,13 @@ La referencia completa esta en `.env.example`.
 | `ENABLE_METRICS` | Activa `GET /metrics`. | Lo defines tu. |
 | `RATE_LIMIT_WINDOW_MS` | Ventana del limitador por IP. | Lo defines tu. |
 | `RATE_LIMIT_MAX_REQUESTS` | Maximo de requests por IP. | Lo defines tu. |
+| `ENABLE_SLACK_NOTIFICATIONS` | Activa envios a Slack solo cuando vale `true`. | Lo defines tu. |
+| `SLACK_WEBHOOK_URL` | Incoming Webhook URL de Slack. | Sale de Slack Incoming Webhooks. |
+| `SLACK_CHANNEL` | Canal esperado, por defecto `#elevenlabs`. | Lo defines tu o queda fijado por el webhook. |
+| `SLACK_NOTIFY_MIN_TEMPERATURE` | Temperatura minima para notificar: `cold`, `warm` o `hot`. | Lo defines tu. |
+| `SLACK_NOTIFY_ON_SCHEDULE_MEETING` | Notifica si `next_step=schedule_meeting`. | Lo defines tu. |
+| `SLACK_APP_NAME` | Nombre informativo para payload/logs. | Lo defines tu. |
+| `SLACK_NOTIFICATIONS_TIMEOUT_MS` | Timeout del POST al webhook. | Lo defines tu. |
 
 ## Donde sacar cada dato importante
 
@@ -290,7 +299,7 @@ GOOGLE_CALENDAR_ID=primary
 
 Comportamiento:
 
-- El backend usa la cuenta real dueña del calendario.
+- El backend usa la cuenta real dueÃ±a del calendario.
 - Ya puede mantener `attendees` cuando existe `lead_email`.
 - `events.insert` usa `sendUpdates: 'all'`.
 - El refresh token se guarda localmente en `DATA_DIR/google-oauth-token.json`.
@@ -302,7 +311,7 @@ Pasos:
 3. Completa el `.env` con las variables OAuth.
 4. Arranca el backend.
 5. Abre `http://localhost:3000/auth/google/start`.
-6. Autoriza con la cuenta dueña del calendario.
+6. Autoriza con la cuenta dueÃ±a del calendario.
 7. Google redirigira a `/auth/google/callback`.
 8. El backend respondera `Google Calendar connected successfully`.
 9. Luego ya puedes probar `create_meeting` con `lead_email`.
@@ -453,6 +462,63 @@ Reglas implementadas:
 - Si no llega `escalation_reason`, usa `solicitud_explicita_del_usuario`.
 - Si no llega `handoff_phone`, usa `HANDOFF_PHONE`.
 
+
+### `POST /api/elevenlabs/qualify-website-project`
+
+Reglas implementadas:
+
+- Requiere header `X-Agent-API-Key`.
+- Valida `Content-Type: application/json`.
+- Califica y persiste un proyecto web sin crear reuniones, sin consultar disponibilidad y sin hacer handoff.
+- Reutiliza lead por `lead_id`, `conversation_id`, `external_conversation_id`, `phone` o `email`.
+- Mapea `phone` a `lead_phone`, `email` a `lead_email`, `project_summary` a `conversation_summary` y `recommended_service` a `specific_service`.
+- Persiste `lead_interest_category = web_project`, `requested_quote = true` y `requested_meeting = true` solo cuando `next_step = schedule_meeting`.
+- Respeta la politica monotona de `lead_status`; usa `cotizacion_solicitada` sin degradar estados mas avanzados.
+- Devuelve `state` con variables listas para assignments de ElevenLabs.
+- Envia Slack opcionalmente a `#elevenlabs` si el lead es `warm`, `hot` o si `next_step = schedule_meeting` y `SLACK_NOTIFY_ON_SCHEDULE_MEETING=true`.
+- Si Slack falla, la tool responde `ok: true` si la calificacion fue guardada correctamente, y reporta `notifications.slack.status = failed`.
+
+Variables Slack:
+
+```env
+ENABLE_SLACK_NOTIFICATIONS=true
+SLACK_WEBHOOK_URL=
+SLACK_CHANNEL=#elevenlabs
+SLACK_NOTIFY_MIN_TEMPERATURE=warm
+SLACK_NOTIFY_ON_SCHEDULE_MEETING=true
+SLACK_APP_NAME=Alma Quinta Leads
+SLACK_NOTIFICATIONS_TIMEOUT_MS=5000
+```
+
+Ejemplo:
+
+```bash
+curl -X POST http://localhost:3000/api/elevenlabs/qualify-website-project \
+  -H "Content-Type: application/json" \
+  -H "X-Agent-API-Key: YOUR_SECRET" \
+  -d '{
+    "lead_name": "Carlos Ramos",
+    "company_name": "Clinica Sonrisa",
+    "email": "carlos@example.com",
+    "phone": "+51999888777",
+    "project_type": "landing_page",
+    "business_goal": "captar clientes interesados en servicios dentales",
+    "current_website": "no tiene web",
+    "required_features": "formulario de contacto, boton de WhatsApp",
+    "domain_hosting_status": "no tiene dominio ni hosting",
+    "available_materials": "tiene logo, no tiene textos",
+    "desired_timeline": "en 30 dias",
+    "approximate_budget": "no proporcionado",
+    "urgency_level": "medium",
+    "lead_temperature": "warm",
+    "recommended_service": "landing_page",
+    "project_summary": "Cliente necesita una landing page para captar leads de una clinica dental. Tiene logo, pero necesita apoyo con textos, dominio y estructura.",
+    "next_step": "schedule_meeting",
+    "timezone": "America/Lima",
+    "conversation_id": "conv_test_001",
+    "external_conversation_id": "wa_test_001"
+  }'
+```
 ### `GET /auth/google/start`
 
 - Solo aplica cuando `GOOGLE_AUTH_MODE=oauth_user`.
@@ -691,3 +757,4 @@ Detalles practicos:
 - Si no llega, el backend genera un fingerprint estable con `lead_id` o contacto, `meeting_datetime_iso`, `specific_service` y `timezone`
 - La respuesta agrega `idempotency: { reused, key }` sin romper el contrato previo
 - El evento de Google Calendar guarda `extendedProperties.private` con `idempotency_key`, `lead_id`, `conversation_id` y `external_conversation_id`
+

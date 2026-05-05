@@ -12,7 +12,18 @@ import {
 } from '../lib/normalize';
 import { maskEmail, maskPhone, shortenText } from '../lib/redaction';
 import { LeadRepository } from '../repositories/lead.repository';
-import type { LeadLookupInput, LeadSaveResult, LeadStatus, StoredLead } from '../types';
+import type {
+  LeadLookupInput,
+  LeadSaveResult,
+  LeadStatus,
+  SlackNotificationStatus,
+  StoredLead,
+  WebsiteLeadTemperature,
+  WebsiteNextStep,
+  WebsiteProjectType,
+  WebsiteRecommendedService,
+  WebsiteUrgencyLevel,
+} from '../types';
 
 type LeadContextInput = {
   lead_id?: string;
@@ -31,6 +42,22 @@ type LeadContextInput = {
   preferred_time_range?: string;
   conversation_summary?: string;
   lead_status?: string;
+  company_name?: string;
+  project_type?: WebsiteProjectType;
+  business_goal?: string;
+  current_website?: string;
+  required_features?: string;
+  domain_hosting_status?: string;
+  available_materials?: string;
+  desired_timeline?: string;
+  approximate_budget?: string;
+  urgency_level?: WebsiteUrgencyLevel;
+  lead_temperature?: WebsiteLeadTemperature;
+  recommended_service?: WebsiteRecommendedService;
+  project_summary?: string;
+  next_step?: WebsiteNextStep;
+  slack_notified_at?: string | null;
+  slack_notification_status?: SlackNotificationStatus;
 };
 
 function hasOwn(input: object, key: string): boolean {
@@ -110,6 +137,48 @@ export class LeadService {
         ? sanitizeSummary(input.conversation_summary) ?? existingLead?.conversation_summary ?? null
         : existingLead?.conversation_summary ?? null,
       lead_status: finalLeadStatus,
+      company_name: this.resolveNullableField(input, 'company_name', existingLead?.company_name ?? null),
+      project_type: this.resolveOptionalValue(input, 'project_type', existingLead?.project_type ?? null),
+      business_goal: this.resolveNullableField(input, 'business_goal', existingLead?.business_goal ?? null),
+      current_website: this.resolveNullableField(input, 'current_website', existingLead?.current_website ?? null),
+      required_features: this.resolveNullableField(input, 'required_features', existingLead?.required_features ?? null),
+      domain_hosting_status: this.resolveNullableField(
+        input,
+        'domain_hosting_status',
+        existingLead?.domain_hosting_status ?? null,
+      ),
+      available_materials: this.resolveNullableField(
+        input,
+        'available_materials',
+        existingLead?.available_materials ?? null,
+      ),
+      desired_timeline: this.resolveNullableField(input, 'desired_timeline', existingLead?.desired_timeline ?? null),
+      approximate_budget: this.resolveNullableField(
+        input,
+        'approximate_budget',
+        existingLead?.approximate_budget ?? null,
+      ),
+      urgency_level: this.resolveOptionalValue(input, 'urgency_level', existingLead?.urgency_level ?? null),
+      lead_temperature: this.resolveOptionalValue(input, 'lead_temperature', existingLead?.lead_temperature ?? null),
+      recommended_service: this.resolveOptionalValue(
+        input,
+        'recommended_service',
+        existingLead?.recommended_service ?? null,
+      ),
+      project_summary: hasOwn(input, 'project_summary')
+        ? sanitizeSummary(input.project_summary) ?? existingLead?.project_summary ?? null
+        : existingLead?.project_summary ?? null,
+      next_step: this.resolveOptionalValue(input, 'next_step', existingLead?.next_step ?? null),
+      slack_notified_at: this.resolveOptionalValue(
+        input,
+        'slack_notified_at',
+        existingLead?.slack_notified_at ?? null,
+      ),
+      slack_notification_status: this.resolveOptionalValue(
+        input,
+        'slack_notification_status',
+        existingLead?.slack_notification_status ?? null,
+      ),
     });
   }
 
@@ -153,5 +222,17 @@ export class LeadService {
     }
 
     return normalizeNullableString(input[key]) ?? existingValue;
+  }
+
+  private resolveOptionalValue<T>(
+    input: LeadContextInput,
+    key: keyof LeadContextInput,
+    existingValue: T | null,
+  ): T | null {
+    if (!hasOwn(input, key)) {
+      return existingValue;
+    }
+
+    return (input[key] as T | null | undefined) ?? existingValue;
   }
 }

@@ -5,6 +5,7 @@ import { AvailabilityService } from '../services/availability.service';
 import { CalendarService } from '../services/calendar.service';
 import { HandoffService } from '../services/handoff.service';
 import { LeadService } from '../services/lead.service';
+import { WebsiteProjectService } from '../services/website-project.service';
 
 export class ElevenLabsController {
   public constructor(
@@ -13,6 +14,7 @@ export class ElevenLabsController {
     private readonly calendarService: CalendarService,
     private readonly leadService: LeadService,
     private readonly handoffService: HandoffService,
+    private readonly websiteProjectService: WebsiteProjectService,
   ) {}
 
   public async checkAvailability(req: Request, res: Response): Promise<void> {
@@ -136,6 +138,35 @@ export class ElevenLabsController {
         handoff_phone: result.handoff.handoff_phone,
       },
       state: result.state,
+    });
+  }
+  public async qualifyWebsiteProject(req: Request, res: Response): Promise<void> {
+    const payload = req.validatedBody as Parameters<WebsiteProjectService['qualifyWebsiteProject']>[0];
+    const result = await this.websiteProjectService.qualifyWebsiteProject(payload, req.logger);
+    this.metrics.elevenlabsToolSuccessTotal.inc({ tool: 'qualify_website_project' });
+
+    req.logger.info({
+      event: 'website_project_qualified',
+      tool_name: 'qualify_website_project',
+      lead_id: result.state.lead_id,
+      conversation_id: result.state.conversation_id,
+      external_conversation_id: result.state.external_conversation_id,
+      project_type: result.qualification.project_type,
+      recommended_service: result.qualification.recommended_service,
+      lead_temperature: result.qualification.lead_temperature,
+      urgency_level: result.qualification.urgency_level,
+      next_step: result.qualification.next_step,
+      slack_notification_status: result.notifications.slack.status,
+    });
+
+    res.status(200).json({
+      ok: true,
+      tool: 'qualify_website_project',
+      request_id: req.requestId,
+      qualification: result.qualification,
+      lead: result.lead,
+      state: result.state,
+      notifications: result.notifications,
     });
   }
 }

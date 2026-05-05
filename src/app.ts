@@ -26,6 +26,8 @@ import { CalendarService } from './services/calendar.service';
 import { GoogleOAuthService } from './services/google-oauth.service';
 import { HandoffService } from './services/handoff.service';
 import { LeadService } from './services/lead.service';
+import { SlackNotificationService } from './services/slack-notification.service';
+import { WebsiteProjectService } from './services/website-project.service';
 import type { AppEnv } from './types';
 
 export interface AppDependencies {
@@ -41,6 +43,8 @@ export interface AppDependencies {
   availabilityService: AvailabilityService;
   leadService: LeadService;
   handoffService: HandoffService;
+  slackNotificationService: SlackNotificationService;
+  websiteProjectService: WebsiteProjectService;
   controller: ElevenLabsController;
 }
 
@@ -160,6 +164,11 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
     metrics,
     calendarService,
   );
+  const slackNotificationService = overrides.slackNotificationService ?? new SlackNotificationService(env);
+  const websiteProjectService = overrides.websiteProjectService ?? new WebsiteProjectService(
+    leadService,
+    slackNotificationService,
+  );
   const handoffService = overrides.handoffService ?? new HandoffService(
     handoffRepository,
     metrics,
@@ -172,6 +181,7 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
     calendarService,
     leadService,
     handoffService,
+    websiteProjectService,
   );
 
   return {
@@ -187,6 +197,8 @@ export function createAppDependencies(overrides: Partial<AppDependencies> = {}):
     availabilityService,
     leadService,
     handoffService,
+    slackNotificationService,
+    websiteProjectService,
     controller,
   };
 }
@@ -230,3 +242,4 @@ export function createApp(overrides: Partial<AppDependencies> = {}): Express {
 
   return app;
 }
+

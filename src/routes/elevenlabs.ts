@@ -1,4 +1,4 @@
-import { Router, type RequestHandler } from 'express';
+﻿import { Router, type RequestHandler } from 'express';
 
 import { AppMetrics } from '../config/metrics';
 import { ElevenLabsController } from '../controllers/elevenlabs.controller';
@@ -8,6 +8,7 @@ import { validate } from '../middleware/validate';
 import { checkAvailabilitySchema } from '../schemas/check-availability.schema';
 import { createMeetingSchema } from '../schemas/create-meeting.schema';
 import { handoffToHumanSchema } from '../schemas/handoff-to-human.schema';
+import { qualifyWebsiteProjectSchema } from '../schemas/qualify-website-project.schema';
 import { saveLeadNoteSchema } from '../schemas/save-lead-note.schema';
 
 function setToolMetadata(
@@ -66,5 +67,14 @@ export function createElevenLabsRouter(dependencies: {
     asyncHandler((req, res) => dependencies.controller.handoffToHuman(req, res)),
   );
 
+  router.post(
+    '/api/elevenlabs/qualify-website-project',
+    setToolMetadata('/api/elevenlabs/qualify-website-project', 'qualify_website_project', dependencies.metrics),
+    dependencies.authMiddleware,
+    requireJsonContentType,
+    validate(qualifyWebsiteProjectSchema, 'qualify_website_project'),
+    asyncHandler((req, res) => dependencies.controller.qualifyWebsiteProject(req, res)),
+  );
   return router;
 }
+

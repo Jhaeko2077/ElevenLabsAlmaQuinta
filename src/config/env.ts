@@ -1,4 +1,4 @@
-import path from 'node:path';
+﻿import path from 'node:path';
 import dotenv from 'dotenv';
 import { z } from 'zod';
 
@@ -18,7 +18,7 @@ const booleanFromEnv = z.preprocess((value) => {
   if (typeof value === 'string') {
     const normalized = value.trim().toLowerCase();
 
-    if (['1', 'true', 'yes', 'y', 'si', 'sí', 'on'].includes(normalized)) {
+    if (['1', 'true', 'yes', 'y', 'si', 'on'].includes(normalized)) {
       return true;
     }
 
@@ -28,6 +28,18 @@ const booleanFromEnv = z.preprocess((value) => {
   }
 
   return value;
+}, z.boolean());
+
+const strictTrueFromEnv = z.preprocess((value) => {
+  if (typeof value === 'boolean') {
+    return value;
+  }
+
+  if (typeof value === 'string') {
+    return value.trim().toLowerCase() === 'true';
+  }
+
+  return false;
 }, z.boolean());
 
 const envSchema = z.object({
@@ -55,6 +67,13 @@ const envSchema = z.object({
   ENABLE_METRICS: booleanFromEnv.default(true),
   RATE_LIMIT_WINDOW_MS: z.coerce.number().int().positive().default(60000),
   RATE_LIMIT_MAX_REQUESTS: z.coerce.number().int().positive().default(60),
+  ENABLE_SLACK_NOTIFICATIONS: strictTrueFromEnv.default(false),
+  SLACK_WEBHOOK_URL: z.string().trim().default(''),
+  SLACK_CHANNEL: z.string().trim().default('#elevenlabs'),
+  SLACK_NOTIFY_MIN_TEMPERATURE: z.enum(['cold', 'warm', 'hot']).default('warm'),
+  SLACK_NOTIFY_ON_SCHEDULE_MEETING: strictTrueFromEnv.default(true),
+  SLACK_APP_NAME: z.string().trim().min(1).default('Alma Quinta Leads'),
+  SLACK_NOTIFICATIONS_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
 }).superRefine((env, ctx) => {
   if (env.GOOGLE_AUTH_MODE === 'service_account') {
     if (!env.GOOGLE_PROJECT_ID) {
@@ -75,7 +94,7 @@ const envSchema = z.object({
       ctx.addIssue({
         code: z.ZodIssueCode.custom,
         path: ['GOOGLE_CLIENT_EMAIL'],
-        message: 'GOOGLE_CLIENT_EMAIL debe ser un email válido.',
+        message: 'GOOGLE_CLIENT_EMAIL debe ser un email valido.',
       });
     }
 
@@ -133,7 +152,7 @@ export function loadEnv(source: NodeJS.ProcessEnv = process.env): AppEnv {
       .map((issue) => `${issue.path.join('.') || 'env'}: ${issue.message}`)
       .join('; ');
 
-    throw new Error(`Configuración de entorno inválida: ${issues}`);
+    throw new Error(`Configuracion de entorno invalida: ${issues}`);
   }
 
   return {
